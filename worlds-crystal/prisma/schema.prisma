@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Champion {
+  id             Int              @id @default(autoincrement())
+  key            String           @unique
+  riotId         Int?
+  name           String
+  GameChampStats GameChampStats[]
+
+  // back-relations for UserPick
+  userPicksMostPicked UserPick[] @relation("MostPicked")
+  userPicksHighestWR  UserPick[] @relation("HighestWR")
+}
+
+model Player {
+  id             Int              @id @default(autoincrement())
+  handle         String           @unique
+  team           String?
+  GameChampStats GameChampStats[]
+
+  // back-relation for UserPick
+  userPicksHighestKDA UserPick[] @relation("HighestKDA")
+}
+
+model Game {
+  id         BigInt   @id @default(autoincrement())
+  tournament String
+  stage      String
+  dateUtc    DateTime
+  patch      String?
+  blueTeam   String
+  redTeam    String
+  winnerTeam String
+
+  GameChampStats GameChampStats[]
+}
+
+model GameChampStats {
+  id         BigInt  @id @default(autoincrement())
+  gameId     BigInt
+  side       Side
+  playerId   Int?
+  championId Int
+  kills      Int     @default(0)
+  deaths     Int     @default(0)
+  assists    Int     @default(0)
+  win        Boolean
+
+  game     Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player   Player?  @relation(fields: [playerId], references: [id])
+  champion Champion @relation(fields: [championId], references: [id])
+}
+
+enum Side {
+  BLUE
+  RED
+}
+
+model UserPick {
+  id     BigInt @id @default(autoincrement())
+  userId String
+  season Int
+
+  mostPickedChampionId Int?
+  highestWrChampionId  Int?
+  highestKdaPlayerId   Int?
+  teemoPicked          Boolean?
+
+  mostPickedChampion Champion? @relation("MostPicked", fields: [mostPickedChampionId], references: [id])
+  highestWrChampion  Champion? @relation("HighestWR", fields: [highestWrChampionId], references: [id])
+  highestKdaPlayer   Player?   @relation("HighestKDA", fields: [highestKdaPlayerId], references: [id])
+
+  @@unique([userId, season])
+}

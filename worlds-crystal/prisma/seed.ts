@@ -1,6 +1,12 @@
 /* prisma/seed.ts */
 import { PrismaClient } from "@prisma/client";
 
+interface ChampionData {
+    id: string;
+    key: string;
+    name: string;
+}
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -10,10 +16,10 @@ async function main() {
     if (!res.ok) throw new Error(`Failed to fetch DDragon: ${res.status}`);
     const data = await res.json();
 
-    const champions = Object.values<any>(data.data).map((c) => ({
-        key: c.id,            // "Aatrox"
-        riotId: Number(c.key),// numeric id string -> number
-        name: c.name          // "Aatrox"
+    const champions = Object.values(data.data as Record<string, ChampionData>).map((c) => ({
+        key: c.id,
+        riotId: Number(c.key),
+        name: c.name,
     }));
 
     for (const c of champions) {

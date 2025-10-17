@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
 
+interface CsvRow {
+    tournament: string;
+    stage: string;
+    dateUtc: string;
+    patch?: string;
+    blueTeam: string;
+    redTeam: string;
+    winnerTeam: string;
+    side: string;
+    player?: string;
+    team?: string;
+    championKey: string;
+    kills?: string | number;
+    deaths?: string | number;
+    assists?: string | number;
+    win?: string | boolean;
+}
+
 // Accepts either raw text body, or form-data with "csv" field
 export async function POST(req: Request) {
     let csvText = "";
@@ -19,11 +37,11 @@ export async function POST(req: Request) {
     }
 
     const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-    const rows = (parsed.data as any[]).filter(Boolean);
+    const rows = (parsed.data as CsvRow[]).filter(Boolean);
 
     // Expected columns (case-sensitive for now):
     // tournament,stage,dateUtc,patch,blueTeam,redTeam,winnerTeam,side,player,team,championKey,kills,deaths,assists,win
-    const byKey = new Map<string, any[]>();
+    const byKey = new Map<string, CsvRow[]>();
     for (const r of rows) {
         const key = `${r.tournament}|${r.stage}|${r.dateUtc}|${r.blueTeam}|${r.redTeam}`;
         if (!byKey.has(key)) byKey.set(key, []);
@@ -89,10 +107,10 @@ export async function POST(req: Request) {
             }
 
             createdGames += 1;
-        } catch (e: any) {
-            errors.push(`Game create failed: ${e?.message ?? e}`);
+        } catch (e) {
+            const err = e instanceof Error ? e.message : String(e);
+            errors.push(`Game create failed: ${err}`);
         }
     }
-
     return NextResponse.json({ ok: true, games: createdGames, errors });
 }

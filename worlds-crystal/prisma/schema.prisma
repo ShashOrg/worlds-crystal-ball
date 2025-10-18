@@ -39,6 +39,9 @@ model Game {
   redTeam    String
   winnerTeam String
 
+  // add this:
+  oracleGameId String? @unique
+
   GameChampStats GameChampStats[]
 }
 
@@ -56,6 +59,8 @@ model GameChampStats {
   game     Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   player   Player?  @relation(fields: [playerId], references: [id])
   champion Champion @relation(fields: [championId], references: [id])
+
+  @@unique([gameId, playerId], name: "game_player_unique")
 }
 
 enum Side {

@@ -2,19 +2,34 @@ import { prisma } from "@/lib/prisma";
 import { MetricResult } from "@/lib/metric-results";
 import { STATISTICS, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 
+function isMissingExternalMetricTableError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const code = (error as { code?: string }).code;
+    const meta = (error as { meta?: { code?: string } }).meta;
+    return code === "P2010" && meta?.code === "42P01";
+}
+
 type MetricComputation = (stat: StatisticDefinition) => Promise<MetricResult>;
 
 const notAvailable = (message?: string): MetricResult => ({ type: "unavailable", message });
 
 async function getExternalMetricResult(metricId: string): Promise<MetricResult | null> {
-    const rows = await prisma.$queryRaw<{ data: unknown }[]>`
-        SELECT "data"
-        FROM "ExternalMetric"
-        WHERE "metricId" = ${metricId}
-        LIMIT 1
-    `;
-    if (!rows.length) return null;
-    return rows[0].data as MetricResult;
+    try {
+        const rows = await prisma.$queryRaw<{ data: unknown }[]>`
+            SELECT "data"
+            FROM "ExternalMetric"
+            WHERE "metricId" = ${metricId}
+            LIMIT 1
+        `;
+        if (!rows.length) return null;
+        return rows[0].data as MetricResult;
+    } catch (error) {
+        if (isMissingExternalMetricTableError(error)) {
+            console.warn("[external-metric] ExternalMetric table missing, returning null metric result");
+            return null;
+        }
+        throw error;
+    }
 }
 
 const metricHandlers: Record<string, MetricComputation> = {

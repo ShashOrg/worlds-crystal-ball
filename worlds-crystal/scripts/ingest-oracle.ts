@@ -4,6 +4,28 @@ import Papa from "papaparse";
 import {MetricResult} from "@/lib/metric-results";
 import {prisma} from "@/lib/prisma";
 
+async function ensureExternalMetricTable() {
+    const exists = await prisma.$queryRaw<{exists: boolean}[]>`
+        SELECT to_regclass('"ExternalMetric"') IS NOT NULL AS "exists"
+    `;
+
+    if (!exists[0]?.exists) {
+        await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "ExternalMetric" (
+                "id" SERIAL PRIMARY KEY,
+                "metricId" TEXT NOT NULL UNIQUE,
+                "data" JSONB NOT NULL,
+                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+                "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+            );
+        `);
+        await prisma.$executeRawUnsafe(`
+            CREATE UNIQUE INDEX IF NOT EXISTS "ExternalMetric_metricId_key"
+            ON "ExternalMetric"("metricId");
+        `);
+    }
+}
+
 // ---- Config you can tweak
 const YEAR = process.env.ORACLE_YEAR ?? "2025";
 
@@ -628,6 +650,8 @@ async function main() {
         const matrix = parseCommunityMatrix(communityCsv.replace(/^\uFEFF/, ""));
         const communityMetrics = buildCommunityMetricResults(matrix);
         const entries = Object.entries(communityMetrics);
+
+        await ensureExternalMetricTable();
 
         for (const [metricId, data] of entries) {
             const payload = JSON.stringify(data);

@@ -12,12 +12,19 @@ type EntitySelectionInfo = {
     entry: MetricEntityEntry | null;
 };
 
+export interface EntityMetricTableColumns {
+    name: string;
+    value: string;
+    detail?: string;
+}
+
 interface EntityMetricTableProps {
     entries: MetricEntityEntry[];
     selection?: EntitySelectionInfo;
+    columns: EntityMetricTableColumns;
 }
 
-export function EntityMetricTable({ entries, selection }: EntityMetricTableProps) {
+export function EntityMetricTable({ entries, selection, columns }: EntityMetricTableProps) {
     const [showAll, setShowAll] = useState(false);
 
     const highlightId = selection?.matchId ?? null;
@@ -48,14 +55,34 @@ export function EntityMetricTable({ entries, selection }: EntityMetricTableProps
             : " (not currently in the top results)"
         : "";
 
+    const showDetailColumn = Boolean(columns.detail);
+
+    const getValueDisplay = (entry: MetricEntityEntry) => {
+        if (entry.value !== undefined && entry.value !== null) {
+            return typeof entry.value === "number"
+                ? entry.value.toLocaleString()
+                : entry.value;
+        }
+        return entry.formattedValue ?? "—";
+    };
+    const getValueWithUnit = (entry: MetricEntityEntry) => {
+        const display = getValueDisplay(entry);
+        if (!entry.valueUnit || display === "—") {
+            return display;
+        }
+        return `${display} ${entry.valueUnit}`;
+    };
+
     return (
         <div className="space-y-3">
             <table className="w-full text-sm border">
                 <thead>
                     <tr className="bg-gray-100">
-                        <th className="p-2 text-left">Name</th>
-                        <th className="p-2 text-right">Value</th>
-                        <th className="p-2 text-right">Details</th>
+                        <th className="p-2 text-left">{columns.name}</th>
+                        <th className="p-2 text-right">{columns.value}</th>
+                        {showDetailColumn ? (
+                            <th className="p-2 text-right">{columns.detail}</th>
+                        ) : null}
                     </tr>
                 </thead>
                 <tbody>
@@ -80,8 +107,10 @@ export function EntityMetricTable({ entries, selection }: EntityMetricTableProps
                                         ) : null}
                                     </div>
                                 </td>
-                                <td className={valueClass}>{entry.formattedValue}</td>
-                                <td className={detailClass}>{entry.detail ?? "—"}</td>
+                                <td className={valueClass}>{getValueDisplay(entry)}</td>
+                                {showDetailColumn ? (
+                                    <td className={detailClass}>{entry.detail ?? "—"}</td>
+                                ) : null}
                             </tr>
                         );
                     })}
@@ -96,11 +125,16 @@ export function EntityMetricTable({ entries, selection }: EntityMetricTableProps
                                 </div>
                             </td>
                             <td className="p-2 text-right font-semibold text-blue-700">
-                                {selection.entry ? selection.entry.formattedValue : "—"}
+                                {selection.entry ? getValueDisplay(selection.entry) : "—"}
+                                {selection.entry?.valueUnit && selection.entry.value !== undefined
+                                    ? ` ${selection.entry.valueUnit}`
+                                    : ""}
                             </td>
-                            <td className="p-2 text-right text-blue-600">
-                                {selection.entry ? selection.entry.detail ?? "—" : "No live data"}
-                            </td>
+                            {showDetailColumn ? (
+                                <td className="p-2 text-right text-blue-600">
+                                    {selection.entry ? selection.entry.detail ?? "—" : "No live data"}
+                                </td>
+                            ) : null}
                         </tr>
                     ) : null}
                 </tbody>
@@ -119,6 +153,12 @@ export function EntityMetricTable({ entries, selection }: EntityMetricTableProps
             {selection ? (
                 <p className="text-sm text-blue-700">
                     Your pick: <span className="font-semibold">{selection.label}</span>
+                    {selection.entry ? (
+                        <>
+                            {" "}
+                            <span className="font-semibold">{getValueWithUnit(selection.entry)}</span>
+                        </>
+                    ) : null}
                     {selectionNoteSuffix}
                 </p>
             ) : null}

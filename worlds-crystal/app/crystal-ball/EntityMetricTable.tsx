@@ -290,9 +290,6 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                     </button>
                 </div>
             ) : null}
-            {selection && !selection.entry ? (
-                <p className="text-sm text-blue-700">Live data for your pick isn&apos;t available yet.</p>
-            ) : null}
         </div>
     );
 }

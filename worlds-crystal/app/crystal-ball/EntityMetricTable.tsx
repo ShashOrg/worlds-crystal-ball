@@ -272,7 +272,7 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                             </td>
                             {showDetailColumn ? (
                                 <td className="p-2 text-right text-blue-600">
-                                    {selection.entry ? selection.entry.detail ?? "—" : "No live data"}
+                                    {selection.entry ? selection.entry.detail ?? "—" : "0"}
                                 </td>
                             ) : null}
                         </tr>

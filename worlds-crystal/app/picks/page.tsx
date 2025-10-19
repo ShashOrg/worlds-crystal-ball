@@ -64,6 +64,34 @@ export default async function PicksPage() {
 
     const renderInput = (stat: StatisticDefinition) => {
         const selection = selectionMap.get(stat.key);
+
+        if (stat.options?.length) {
+            const defaultValue =
+                selection?.valueText ??
+                (selection?.valueNumber !== null && selection?.valueNumber !== undefined
+                    ? String(selection.valueNumber)
+                    : "");
+            const options = [...stat.options];
+            if (defaultValue && !options.includes(defaultValue)) {
+                options.push(defaultValue);
+            }
+            return (
+                <select
+                    id={stat.key}
+                    name={stat.key}
+                    defaultValue={defaultValue}
+                    className="border rounded p-2 w-full"
+                >
+                    <option value="">—</option>
+                    {options.map((option) => (
+                        <option key={option} value={option}>
+                            {option}
+                        </option>
+                    ))}
+                </select>
+            );
+        }
+
         switch (stat.entity_type) {
             case "champion": {
                 const defaultValue = selection?.championId ? String(selection.championId) : "";
@@ -120,13 +148,16 @@ export default async function PicksPage() {
                 );
             }
             case "event_total": {
-                const defaultValue = selection?.valueNumber ?? "";
+                const defaultValue =
+                    selection?.valueNumber !== null && selection?.valueNumber !== undefined
+                        ? String(selection.valueNumber)
+                        : "";
                 return (
                     <input
                         id={stat.key}
                         name={stat.key}
                         type="number"
-                        defaultValue={defaultValue === "" ? "" : defaultValue}
+                        defaultValue={defaultValue}
                         min={0}
                         className="border rounded p-2 w-full"
                     />

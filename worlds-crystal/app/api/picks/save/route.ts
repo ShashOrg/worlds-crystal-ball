@@ -20,6 +20,8 @@ function parseSelectionValue(statKey: string, raw: FormDataEntryValue | null): S
     const stat = STATISTICS.find((s) => s.key === statKey);
     if (!stat) return null;
 
+    const hasOptions = Array.isArray(stat.options) && stat.options.length > 0;
+
     const base: SelectionData = {
         championId: null,
         playerId: null,
@@ -53,6 +55,9 @@ function parseSelectionValue(statKey: string, raw: FormDataEntryValue | null): S
             return { ...base, teamName: value, valueText: value };
         }
         case "event_total": {
+            if (hasOptions) {
+                return { ...base, valueText: value };
+            }
             const parsed = Number(value);
             if (Number.isNaN(parsed)) return null;
             return { ...base, valueNumber: parsed };
@@ -123,8 +128,8 @@ export async function POST(req: Request) {
     for (const stat of STATISTICS) {
         const raw = form.get(stat.key);
         const parsed = parseSelectionValue(stat.key, raw);
-        const where = {
-            userPickId_statisticKey: {
+        const where: Prisma.UserPickSelectionWhereUniqueInput = {
+            user_pick_statistic_unique: {
                 userPickId: userPick.id,
                 statisticKey: stat.key,
             },

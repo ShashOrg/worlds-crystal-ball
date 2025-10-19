@@ -11,6 +11,7 @@ export interface StatisticDefinition {
         min_games?: number;
         [key: string]: unknown;
     };
+    options?: string[];
 }
 
 export const STATISTICS: StatisticDefinition[] = [
@@ -151,6 +152,7 @@ export const STATISTICS: StatisticDefinition[] = [
         question: "How many Baron steals will there be?",
         entity_type: "event_total",
         metric_id: "event_total_baron_steals",
+        options: ["0-2", "3-5", "6-8", "9+"],
     },
     {
         key: "event_reverse_sweeps_knockouts",
@@ -167,6 +169,7 @@ export const STATISTICS: StatisticDefinition[] = [
         question: "How many unique champions will be picked?",
         entity_type: "event_total",
         metric_id: "event_total_unique_champions_picked",
+        options: ["Less than 105", "105-109", "110-114", "115-119", "120+"],
     },
     {
         key: "event_teemo_picked_boolean",

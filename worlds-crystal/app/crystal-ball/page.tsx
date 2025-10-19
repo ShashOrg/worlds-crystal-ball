@@ -129,13 +129,15 @@ async function getChampionSelectionEntry(
                 prisma.gameChampStats.count({ where: { championId } }),
                 prisma.gameChampStats.count({ where: { championId, win: true } }),
             ]);
+            const gamesDisplay = games.toLocaleString();
+
             if (games === 0) {
                 return {
                     id: String(championId),
                     name,
                     value: "0.0%",
                     formattedValue: "0.0%",
-                    detail: "0 games",
+                    detail: gamesDisplay,
                 };
             }
             const wr = (wins / games) * 100;
@@ -144,7 +146,7 @@ async function getChampionSelectionEntry(
                 name,
                 value: `${wr.toFixed(1)}%`,
                 formattedValue: `${wr.toFixed(1)}%`,
-                detail: `${games} games`,
+                detail: gamesDisplay,
             };
         }
         default:
@@ -169,12 +171,13 @@ async function getPlayerSelectionEntry(
             const deaths = aggregate._sum.deaths ?? 0;
             const games = aggregate._count?._all ?? 0;
             const kda = (kills + assists) / Math.max(1, deaths);
+            const gamesDisplay = games.toLocaleString();
             return {
                 id: String(playerId),
                 name,
                 value: kda.toFixed(2),
                 formattedValue: kda.toFixed(2),
-                detail: `${games} games`,
+                detail: gamesDisplay,
             };
         }
         case "player_unique_champions": {
@@ -300,7 +303,7 @@ const metricHandlers: Record<string, MetricComputation> = {
             name: cmap.get(r.championId) ?? `Champion ${r.championId}`,
             value: `${(r.wr * 100).toFixed(1)}%`,
             formattedValue: `${(r.wr * 100).toFixed(1)}%`,
-            detail: `${r.games} games`,
+            detail: r.games.toLocaleString(),
         }));
         return { type: "entity", entries };
     },
@@ -335,7 +338,7 @@ const metricHandlers: Record<string, MetricComputation> = {
             name: cmap.get(r.championId) ?? `Champion ${r.championId}`,
             value: `${(r.wr * 100).toFixed(1)}%`,
             formattedValue: `${(r.wr * 100).toFixed(1)}%`,
-            detail: `${r.games} games`,
+            detail: r.games.toLocaleString(),
         }));
         return { type: "entity", entries };
     },
@@ -388,7 +391,7 @@ const metricHandlers: Record<string, MetricComputation> = {
             name: pmap.get(v.playerId) ?? `Player ${v.playerId}`,
             value: v.kda.toFixed(2),
             formattedValue: v.kda.toFixed(2),
-            detail: `${v.games} games`,
+            detail: v.games.toLocaleString(),
         }));
         return { type: "entity", entries };
     },

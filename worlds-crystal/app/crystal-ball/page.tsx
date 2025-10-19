@@ -1,22 +1,36 @@
 import { prisma } from "@/lib/prisma";
+import { MetricResult } from "@/lib/metric-results";
 import { STATISTICS, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 
-interface MetricEntityEntry {
-    id: string;
-    name: string;
-    formattedValue: string;
-    detail?: string;
+function isMissingExternalMetricTableError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const code = (error as { code?: string }).code;
+    const meta = (error as { meta?: { code?: string } }).meta;
+    return code === "P2010" && meta?.code === "42P01";
 }
-
-type MetricResult =
-    | { type: "entity"; entries: MetricEntityEntry[] }
-    | { type: "number"; value: number | null; unit?: string }
-    | { type: "boolean"; value: boolean | null }
-    | { type: "unavailable"; message?: string };
 
 type MetricComputation = (stat: StatisticDefinition) => Promise<MetricResult>;
 
 const notAvailable = (message?: string): MetricResult => ({ type: "unavailable", message });
+
+async function getExternalMetricResult(metricId: string): Promise<MetricResult | null> {
+    try {
+        const rows = await prisma.$queryRaw<{ data: unknown }[]>`
+            SELECT "data"
+            FROM "ExternalMetric"
+            WHERE "metricId" = ${metricId}
+            LIMIT 1
+        `;
+        if (!rows.length) return null;
+        return rows[0].data as MetricResult;
+    } catch (error) {
+        if (isMissingExternalMetricTableError(error)) {
+            console.warn("[external-metric] ExternalMetric table missing, returning null metric result");
+            return null;
+        }
+        throw error;
+    }
+}
 
 const metricHandlers: Record<string, MetricComputation> = {
     champion_total_picks: async () => {
@@ -38,7 +52,9 @@ const metricHandlers: Record<string, MetricComputation> = {
         }));
         return { type: "entity", entries };
     },
-    champion_total_bans: async () => notAvailable("Ban data has not been imported yet."),
+    champion_total_bans: async () =>
+        (await getExternalMetricResult("champion_total_bans")) ??
+        notAvailable("Ban data has not been imported yet."),
     champion_winrate_min5: async (stat) => {
         const minGames = typeof stat.constraints?.min_games === "number" ? stat.constraints.min_games : 5;
         const totals = await prisma.gameChampStats.groupBy({
@@ -184,8 +200,12 @@ const metricHandlers: Record<string, MetricComputation> = {
         }));
         return { type: "entity", entries };
     },
-    player_has_pentakill: async () => notAvailable("Pentakill data is not tracked yet."),
-    player_first_bloods: async () => notAvailable("First blood data is not tracked yet."),
+    player_has_pentakill: async () =>
+        (await getExternalMetricResult("player_has_pentakill")) ??
+        notAvailable("Pentakill data is not tracked yet."),
+    player_first_bloods: async () =>
+        (await getExternalMetricResult("player_first_bloods")) ??
+        notAvailable("First blood data is not tracked yet."),
     player_max_kills_single_game: async () => {
         const groups = await prisma.gameChampStats.groupBy({
             by: ["playerId"],
@@ -208,9 +228,15 @@ const metricHandlers: Record<string, MetricComputation> = {
             }));
         return { type: "entity", entries };
     },
-    team_elder_drakes_killed: async () => notAvailable("Objective stats are not available yet."),
-    team_baron_steals: async () => notAvailable("Objective stats are not available yet."),
-    team_shortest_win_game_time_seconds: async () => notAvailable("Game duration data is not available yet."),
+    team_elder_drakes_killed: async () =>
+        (await getExternalMetricResult("team_elder_drakes_killed")) ??
+        notAvailable("Objective stats are not available yet."),
+    team_baron_steals: async () =>
+        (await getExternalMetricResult("team_baron_steals")) ??
+        notAvailable("Objective stats are not available yet."),
+    team_shortest_win_game_time_seconds: async () =>
+        (await getExternalMetricResult("team_shortest_win_game_time_seconds")) ??
+        notAvailable("Game duration data is not available yet."),
     team_total_kills: async () => {
         const stats = await prisma.gameChampStats.findMany({
             where: { playerId: { not: null } },
@@ -264,9 +290,15 @@ const metricHandlers: Record<string, MetricComputation> = {
         }));
         return { type: "entity", entries };
     },
-    event_total_pentakills: async () => notAvailable("Pentakill data is not tracked yet."),
-    event_total_baron_steals: async () => notAvailable("Baron steal data is not tracked yet."),
-    event_knockout_reverse_sweeps: async () => notAvailable("Series results are not tracked yet."),
+    event_total_pentakills: async () =>
+        (await getExternalMetricResult("event_total_pentakills")) ??
+        notAvailable("Pentakill data is not tracked yet."),
+    event_total_baron_steals: async () =>
+        (await getExternalMetricResult("event_total_baron_steals")) ??
+        notAvailable("Baron steal data is not tracked yet."),
+    event_knockout_reverse_sweeps: async () =>
+        (await getExternalMetricResult("event_knockout_reverse_sweeps")) ??
+        notAvailable("Series results are not tracked yet."),
     event_total_unique_champions_picked: async () => {
         const champs = await prisma.gameChampStats.findMany({
             distinct: ["championId"],

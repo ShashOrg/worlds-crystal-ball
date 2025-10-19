@@ -1,18 +1,37 @@
 // scripts/ingest-oracle.ts
 import "dotenv/config";
-import fs from "node:fs/promises";
-import path from "node:path";
 import Papa from "papaparse";
+import {MetricResult} from "@/lib/metric-results";
 import {prisma} from "@/lib/prisma";
+
+async function ensureExternalMetricTable() {
+    const exists = await prisma.$queryRaw<{exists: boolean}[]>`
+        SELECT to_regclass('"ExternalMetric"') IS NOT NULL AS "exists"
+    `;
+
+    if (!exists[0]?.exists) {
+        await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "ExternalMetric" (
+                "id" SERIAL PRIMARY KEY,
+                "metricId" TEXT NOT NULL UNIQUE,
+                "data" JSONB NOT NULL,
+                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+                "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
+            );
+        `);
+        await prisma.$executeRawUnsafe(`
+            CREATE UNIQUE INDEX IF NOT EXISTS "ExternalMetric_metricId_key"
+            ON "ExternalMetric"("metricId");
+        `);
+    }
+}
 
 // ---- Config you can tweak
 const YEAR = process.env.ORACLE_YEAR ?? "2025";
-const DOWNLOAD_URL =
-    process.env.ORACLE_CSV_URL // if you want to pin a URL explicitly
-    ?? `https://oracleselixir.com/tools/downloads`; // we'll accept a pre-downloaded file too
 
-// If you prefer to keep a local copy, set ORACLE_CSV_PATH to a .csv you downloaded manually.
-const LOCAL_PATH = process.env.ORACLE_CSV_PATH ?? "";
+const COMMUNITY_DRIVE_FILE_ID = process.env.COMMUNITY_DRIVE_FILE_ID ?? "1xt2vnIOPW1J7e9xYCyLDKAbqJiF7r1jMg7BeLPyeaDc";
+const COMMUNITY_CSV_URL = process.env.COMMUNITY_CSV_URL ?? "";
+const COMMUNITY_CSV_PATH = process.env.COMMUNITY_CSV_PATH ?? "";
 
 type Row = {
     gameid: string;
@@ -132,6 +151,34 @@ async function loadCsvText(): Promise<string> {
     );
 }
 
+async function loadCommunityCsvText(): Promise<string | null> {
+    try {
+        if (COMMUNITY_CSV_URL) {
+            const res = await fetch(COMMUNITY_CSV_URL);
+            if (!res.ok) throw new Error(`Failed to fetch community CSV (${res.status})`);
+            return await res.text();
+        }
+
+        if (COMMUNITY_CSV_PATH) {
+            const fs = await import("node:fs/promises");
+            const path = await import("node:path");
+            const resolved = path.isAbsolute(COMMUNITY_CSV_PATH)
+                ? COMMUNITY_CSV_PATH
+                : path.join(process.cwd(), COMMUNITY_CSV_PATH);
+            return await fs.readFile(resolved, "utf-8");
+        }
+
+        if (COMMUNITY_DRIVE_FILE_ID) {
+            return await downloadFromGoogleDrive(COMMUNITY_DRIVE_FILE_ID);
+        }
+    } catch (error) {
+        console.warn("[community] failed to load CSV", error);
+        return null;
+    }
+
+    return null;
+}
+
 // Configurable filters via env
 const LEAGUE_REGEX = new RegExp(process.env.ORACLE_LEAGUE_REGEX ?? "(world|wcs|wrld|worlds|champ)", "i");
 const YEAR_FILTER = process.env.ORACLE_YEAR_FILTER ? Number(process.env.ORACLE_YEAR_FILTER) : undefined;
@@ -180,6 +227,266 @@ function detectDelimiter(text: string) {
     const commas = (firstLine.match(/,/g) || []).length;
     const semis = (firstLine.match(/;/g) || []).length;
     return semis > commas ? ";" : ",";
+}
+
+type CsvMatrix = string[][];
+
+function normalizeCell(value: unknown): string {
+    if (typeof value === "string") return value.trim();
+    if (value === undefined || value === null) return "";
+    return String(value).trim();
+}
+
+function parseCommunityMatrix(csvText: string): CsvMatrix {
+    const parsed = Papa.parse<string[]>(csvText, {
+        header: false,
+        skipEmptyLines: false,
+    });
+
+    return parsed.data.map((row) => row.map(normalizeCell));
+}
+
+function findHeader(matrix: CsvMatrix, header: string): { row: number; col: number } | null {
+    for (let r = 0; r < matrix.length; r++) {
+        const row = matrix[r];
+        const col = row.findIndex((cell) => cell === header);
+        if (col !== -1) {
+            return { row: r, col };
+        }
+    }
+    return null;
+}
+
+function parseChampionSection(matrix: CsvMatrix, header: string) {
+    const loc = findHeader(matrix, header);
+    if (!loc) return [] as { rank: string; name: string; count: number }[];
+
+    const entries: { rank: string; name: string; count: number }[] = [];
+    for (let r = loc.row + 1; r < matrix.length; r++) {
+        const row = matrix[r];
+        const rank = row[loc.col];
+        if (!rank || rank.startsWith("🔗")) break;
+
+        const name = row[loc.col + 1] ?? "";
+        const countCell = row[loc.col + 3] ?? row[loc.col + 2] ?? "";
+        const count = Number(countCell.replace(/[^0-9.]/g, ""));
+        if (!name) continue;
+        if (Number.isNaN(count)) continue;
+
+        entries.push({ rank, name, count });
+    }
+
+    return entries;
+}
+
+function parsePlayerSection(matrix: CsvMatrix, header: string) {
+    const loc = findHeader(matrix, header);
+    if (!loc) return [] as { rank: string; region: string; team: string; player: string; count: number }[];
+
+    const entries: { rank: string; region: string; team: string; player: string; count: number }[] = [];
+    for (let r = loc.row + 1; r < matrix.length; r++) {
+        const row = matrix[r];
+        const rank = row[loc.col];
+        if (!rank || rank.startsWith("🔗")) break;
+
+        const player = row[loc.col + 4] ?? "";
+        if (!player) continue;
+
+        const region = row[loc.col + 1] ?? "";
+        const team = row[loc.col + 3] ?? "";
+        const countCell = row[loc.col + 5] ?? "";
+        const count = Number(countCell.replace(/[^0-9.]/g, ""));
+        if (Number.isNaN(count)) continue;
+
+        entries.push({ rank, region, team, player, count });
+    }
+
+    return entries;
+}
+
+function parseTeamSection(matrix: CsvMatrix, header: string) {
+    const loc = findHeader(matrix, header);
+    if (!loc) return [] as { rank: string; region: string; team: string; count: number }[];
+
+    const entries: { rank: string; region: string; team: string; count: number }[] = [];
+    for (let r = loc.row + 1; r < matrix.length; r++) {
+        const row = matrix[r];
+        const rank = row[loc.col];
+        if (!rank || rank.startsWith("🔗")) break;
+
+        const team = row[loc.col + 3] ?? "";
+        if (!team) continue;
+
+        const region = row[loc.col + 1] ?? "";
+        const countCell = row[loc.col + 8] ?? "";
+        const count = Number(countCell.replace(/[^0-9.]/g, ""));
+        if (Number.isNaN(count)) continue;
+
+        entries.push({ rank, region, team, count });
+    }
+
+    return entries;
+}
+
+function parseFastestWinSection(matrix: CsvMatrix, header: string) {
+    const loc = findHeader(matrix, header);
+    if (!loc) return [] as {
+        rank: string;
+        region: string;
+        team: string;
+        opponentRegion: string;
+        opponentTeam: string;
+        time: string;
+    }[];
+
+    const entries: {
+        rank: string;
+        region: string;
+        team: string;
+        opponentRegion: string;
+        opponentTeam: string;
+        time: string;
+    }[] = [];
+
+    for (let r = loc.row + 1; r < matrix.length; r++) {
+        const row = matrix[r];
+        const rank = row[loc.col];
+        if (!rank || rank.startsWith("🔗")) break;
+
+        const team = row[loc.col + 3] ?? "";
+        const time = row[loc.col + 8] ?? "";
+        if (!team || !time) continue;
+
+        const region = row[loc.col + 1] ?? "";
+        const opponentRegion = row[loc.col + 5] ?? "";
+        const opponentTeam = row[loc.col + 7] ?? "";
+
+        entries.push({ rank, region, team, opponentRegion, opponentTeam, time });
+    }
+
+    return entries;
+}
+
+function parseEventTotal(matrix: CsvMatrix, header: string) {
+    const loc = findHeader(matrix, header);
+    if (!loc) return null as { value: number | null; message?: string } | null;
+
+    const row = matrix[loc.row];
+    let value: number | null = null;
+    for (let c = row.length - 1; c > loc.col; c--) {
+        const cell = row[c];
+        if (cell) {
+            const parsed = Number(cell.replace(/[^0-9.]/g, ""));
+            value = Number.isNaN(parsed) ? null : parsed;
+            break;
+        }
+    }
+
+    const nextRow = matrix[loc.row + 1];
+    let message: string | undefined;
+    if (nextRow) {
+        for (let c = loc.col; c < nextRow.length; c++) {
+            const cell = nextRow[c];
+            if (cell) {
+                message = cell;
+                break;
+            }
+        }
+    }
+
+    return { value, message };
+}
+
+function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricResult> {
+    const metrics: Record<string, MetricResult> = {};
+
+    const bans = parseChampionSection(matrix, "🔗 Most Banned");
+    metrics["champion_total_bans"] = {
+        type: "entity",
+        entries: bans.map((entry) => ({
+            id: entry.name,
+            name: entry.name,
+            formattedValue: `${entry.count} bans`,
+        })),
+    };
+
+    const pentakillers = parsePlayerSection(matrix, "🔗 Pentakillers");
+    metrics["player_has_pentakill"] = {
+        type: "entity",
+        entries: pentakillers.map((entry) => ({
+            id: entry.player,
+            name: entry.player,
+            formattedValue: `${entry.count} pentakill${entry.count === 1 ? "" : "s"}`,
+            detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
+        })),
+    };
+
+    const firstBloods = parsePlayerSection(matrix, "🔗 Most First Blood kills");
+    metrics["player_first_bloods"] = {
+        type: "entity",
+        entries: firstBloods.map((entry) => ({
+            id: entry.player,
+            name: entry.player,
+            formattedValue: `${entry.count} first blood${entry.count === 1 ? "" : "s"}`,
+            detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
+        })),
+    };
+
+    const elderDrakes = parseTeamSection(matrix, "🔗 Most Elder Dragons");
+    metrics["team_elder_drakes_killed"] = {
+        type: "entity",
+        entries: elderDrakes.map((entry) => ({
+            id: entry.team,
+            name: entry.team,
+            formattedValue: `${entry.count} elder${entry.count === 1 ? "" : "s"}`,
+            detail: entry.region || undefined,
+        })),
+    };
+
+    const baronSteals = parseTeamSection(matrix, "🔗 Most Baron Steals");
+    metrics["team_baron_steals"] = {
+        type: "entity",
+        entries: baronSteals.map((entry) => ({
+            id: entry.team,
+            name: entry.team,
+            formattedValue: `${entry.count} steal${entry.count === 1 ? "" : "s"}`,
+            detail: entry.region || undefined,
+        })),
+    };
+
+    const fastestWins = parseFastestWinSection(matrix, "🔗 Fastest win");
+    metrics["team_shortest_win_game_time_seconds"] = {
+        type: "entity",
+        entries: fastestWins.map((entry) => ({
+            id: `${entry.team}-${entry.time}`,
+            name: entry.team,
+            formattedValue: entry.time,
+            detail: ["vs", entry.opponentTeam, entry.opponentRegion].filter(Boolean).join(" ") || undefined,
+        })),
+    };
+
+    const pentakillTotal = parseEventTotal(matrix, "🔗 Pentakills");
+    metrics["event_total_pentakills"] = {
+        type: "number",
+        value: pentakillTotal?.value ?? null,
+        unit: pentakillTotal?.message && pentakillTotal.value === 0 ? pentakillTotal.message : undefined,
+    };
+
+    const baronTotal = parseEventTotal(matrix, "🔗 Baron Steals");
+    metrics["event_total_baron_steals"] = {
+        type: "number",
+        value: baronTotal?.value ?? null,
+        unit: baronTotal?.message && baronTotal.value === 0 ? baronTotal.message : undefined,
+    };
+
+    const reverseSweeps = parseEventTotal(matrix, "🔗 Reverse Sweeps");
+    metrics["event_knockout_reverse_sweeps"] = {
+        type: "number",
+        value: reverseSweeps?.value ?? null,
+        unit: reverseSweeps?.message && reverseSweeps.value === 0 ? reverseSweeps.message : undefined,
+    };
+
+    return metrics;
 }
 
 async function main() {
@@ -337,6 +644,30 @@ async function main() {
     }
 
     console.log(`Games created: ${created}, updated: ${updated}, player-rows inserted: ${statsInserted}`);
+
+    const communityCsv = await loadCommunityCsvText();
+    if (communityCsv) {
+        const matrix = parseCommunityMatrix(communityCsv.replace(/^\uFEFF/, ""));
+        const communityMetrics = buildCommunityMetricResults(matrix);
+        const entries = Object.entries(communityMetrics);
+
+        await ensureExternalMetricTable();
+
+        for (const [metricId, data] of entries) {
+            const payload = JSON.stringify(data);
+            await prisma.$executeRaw`
+                INSERT INTO "ExternalMetric" ("metricId", "data")
+                VALUES (${metricId}, ${payload}::jsonb)
+                ON CONFLICT ("metricId") DO UPDATE
+                SET "data" = ${payload}::jsonb,
+                    "updatedAt" = NOW();
+            `;
+        }
+
+        console.log(`[community] synced ${entries.length} metrics from community sheet`);
+    } else {
+        console.warn("[community] skipped syncing metrics (no CSV available)");
+    }
 }
 
 main().catch((e) => {

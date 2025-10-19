@@ -1,6 +1,27 @@
 import { prisma } from "@/lib/prisma";
-import { MetricResult } from "@/lib/metric-results";
-import { STATISTICS, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
+import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
+import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
+import { getServerSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
+const CURRENT_SEASON = 2025;
+
+type SelectionWithRelations = Prisma.UserPickSelectionGetPayload<{
+    include: { champion: true; player: true };
+}>;
+
+type UserSelectionInfo =
+    | {
+          type: "entity";
+          label: string;
+          matchId: string;
+          entry: MetricEntityEntry | null;
+      }
+    | {
+          type: "value";
+          label: string;
+      };
 
 function isMissingExternalMetricTableError(error: unknown): boolean {
     if (!error || typeof error !== "object") return false;
@@ -29,6 +50,177 @@ async function getExternalMetricResult(metricId: string): Promise<MetricResult |
             return null;
         }
         throw error;
+    }
+}
+
+async function buildSelectionInfo(stat: StatisticDefinition, selection: SelectionWithRelations): Promise<UserSelectionInfo | null> {
+    switch (stat.entity_type) {
+        case "champion": {
+            if (!selection.championId) return null;
+            const name = selection.champion?.name ?? selection.valueText ?? `Champion ${selection.championId}`;
+            const matchId = String(selection.championId);
+            const entry = await getChampionSelectionEntry(stat, selection.championId, name);
+            return { type: "entity", label: name, matchId, entry };
+        }
+        case "player": {
+            if (!selection.playerId) return null;
+            const name = selection.player?.handle ?? selection.valueText ?? `Player ${selection.playerId}`;
+            const matchId = String(selection.playerId);
+            const entry = await getPlayerSelectionEntry(stat, selection.playerId, name);
+            return { type: "entity", label: name, matchId, entry };
+        }
+        case "team": {
+            const teamName = selection.teamName ?? selection.valueText;
+            if (!teamName) return null;
+            const entry = await getTeamSelectionEntry(stat, teamName);
+            return { type: "entity", label: teamName, matchId: teamName, entry };
+        }
+        case "event_total": {
+            const value =
+                selection.valueText ??
+                (selection.valueNumber !== null && selection.valueNumber !== undefined
+                    ? String(selection.valueNumber)
+                    : null);
+            if (!value) return null;
+            return { type: "value", label: value };
+        }
+        case "boolean": {
+            if (selection.valueBoolean === null || selection.valueBoolean === undefined) return null;
+            return { type: "value", label: selection.valueBoolean ? "Yes" : "No" };
+        }
+        default:
+            return null;
+    }
+}
+
+async function getChampionSelectionEntry(
+    stat: StatisticDefinition,
+    championId: number,
+    name: string,
+): Promise<MetricEntityEntry | null> {
+    switch (stat.metric_id) {
+        case "champion_total_picks": {
+            const picks = await prisma.gameChampStats.count({ where: { championId } });
+            return { id: String(championId), name, formattedValue: `${picks} picks` };
+        }
+        case "champion_total_kills": {
+            const kills = await prisma.gameChampStats.aggregate({
+                where: { championId },
+                _sum: { kills: true },
+            });
+            return {
+                id: String(championId),
+                name,
+                formattedValue: `${kills._sum.kills ?? 0} kills`,
+            };
+        }
+        case "champion_winrate_min5":
+        case "champion_winrate_min5_low": {
+            const [games, wins] = await Promise.all([
+                prisma.gameChampStats.count({ where: { championId } }),
+                prisma.gameChampStats.count({ where: { championId, win: true } }),
+            ]);
+            if (games === 0) {
+                return {
+                    id: String(championId),
+                    name,
+                    formattedValue: "0.0%",
+                    detail: "0 games",
+                };
+            }
+            const wr = (wins / games) * 100;
+            return {
+                id: String(championId),
+                name,
+                formattedValue: `${wr.toFixed(1)}%`,
+                detail: `${games} games`,
+            };
+        }
+        default:
+            return null;
+    }
+}
+
+async function getPlayerSelectionEntry(
+    stat: StatisticDefinition,
+    playerId: number,
+    name: string,
+): Promise<MetricEntityEntry | null> {
+    switch (stat.metric_id) {
+        case "player_kda_highest": {
+            const aggregate = await prisma.gameChampStats.aggregate({
+                where: { playerId },
+                _sum: { kills: true, assists: true, deaths: true },
+                _count: { _all: true },
+            });
+            const kills = aggregate._sum.kills ?? 0;
+            const assists = aggregate._sum.assists ?? 0;
+            const deaths = aggregate._sum.deaths ?? 0;
+            const games = aggregate._count?._all ?? 0;
+            const kda = (kills + assists) / Math.max(1, deaths);
+            return {
+                id: String(playerId),
+                name,
+                formattedValue: kda.toFixed(2),
+                detail: `${games} games`,
+            };
+        }
+        case "player_unique_champions": {
+            const champions = await prisma.gameChampStats.findMany({
+                where: { playerId },
+                distinct: ["championId"],
+                select: { championId: true },
+            });
+            return {
+                id: String(playerId),
+                name,
+                formattedValue: `${champions.length} champions`,
+            };
+        }
+        case "player_max_kills_single_game": {
+            const aggregate = await prisma.gameChampStats.aggregate({
+                where: { playerId },
+                _max: { kills: true },
+            });
+            const kills = aggregate._max.kills ?? 0;
+            return {
+                id: String(playerId),
+                name,
+                formattedValue: `${kills} kills`,
+            };
+        }
+        default:
+            return null;
+    }
+}
+
+async function getTeamSelectionEntry(stat: StatisticDefinition, teamName: string): Promise<MetricEntityEntry | null> {
+    switch (stat.metric_id) {
+        case "team_total_kills": {
+            const aggregate = await prisma.gameChampStats.aggregate({
+                where: { player: { team: teamName } },
+                _sum: { kills: true },
+            });
+            return {
+                id: teamName,
+                name: teamName,
+                formattedValue: `${aggregate._sum.kills ?? 0} kills`,
+            };
+        }
+        case "team_unique_champions_played": {
+            const champions = await prisma.gameChampStats.findMany({
+                where: { player: { team: teamName } },
+                distinct: ["championId"],
+                select: { championId: true },
+            });
+            return {
+                id: teamName,
+                name: teamName,
+                formattedValue: `${champions.length} champions`,
+            };
+        }
+        default:
+            return null;
     }
 }
 
@@ -318,8 +510,35 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
+    const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
+
+    const userSelections = new Map<string, UserSelectionInfo>();
+
+    if (session?.user?.id) {
+        const userPick = await prisma.userPick.findUnique({
+            where: { userId_season: { userId: session.user.id, season: CURRENT_SEASON } },
+            include: { selections: { include: { champion: true, player: true } } },
+        });
+
+        if (userPick?.selections?.length) {
+            const selectionEntries = await Promise.all(
+                userPick.selections.map(async (selection) => {
+                    const stat = STATISTICS_BY_KEY.get(selection.statisticKey);
+                    if (!stat) return null;
+                    const info = await buildSelectionInfo(stat, selection);
+                    if (!info) return null;
+                    return [stat.key, info] as const;
+                }),
+            );
+
+            for (const entry of selectionEntries) {
+                if (!entry) continue;
+                userSelections.set(entry[0], entry[1]);
+            }
+        }
+    }
 
     const results = await Promise.all(
         stats.map(async (stat) => {
@@ -359,55 +578,10 @@ export default async function CrystalBallPage() {
                                         <p className="text-xs text-gray-500">Worth {stat.points} points</p>
                                     </header>
                                     <div className="p-4">
-                                        {(() => {
-                                            switch (result.type) {
-                                                case "entity": {
-                                                    if (!result.entries.length) {
-                                                        return <p className="text-sm text-gray-500">No data yet.</p>;
-                                                    }
-                                                    return (
-                                                        <table className="w-full text-sm border">
-                                                            <thead>
-                                                                <tr className="bg-gray-100">
-                                                                    <th className="p-2 text-left">Name</th>
-                                                                    <th className="p-2 text-right">Value</th>
-                                                                    <th className="p-2 text-right">Details</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {result.entries.map((entry) => (
-                                                                    <tr key={entry.id} className="border-t">
-                                                                        <td className="p-2">{entry.name}</td>
-                                                                        <td className="p-2 text-right">{entry.formattedValue}</td>
-                                                                        <td className="p-2 text-right text-gray-500">{entry.detail ?? "—"}</td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    );
-                                                }
-                                                case "number":
-                                                    return (
-                                                        <p className="text-lg">
-                                                            {result.value === null ? "No data yet" : result.value}
-                                                            {result.unit ? ` ${result.unit}` : ""}
-                                                        </p>
-                                                    );
-                                                case "boolean":
-                                                    return (
-                                                        <p className="text-lg">
-                                                            {result.value === null ? "No data yet" : result.value ? "Yes" : "No"}
-                                                        </p>
-                                                    );
-                                                case "unavailable":
-                                                default:
-                                                    return (
-                                                        <p className="text-sm text-gray-500">
-                                                            {result.message ?? "This statistic is not available yet."}
-                                                        </p>
-                                                    );
-                                            }
-                                        })()}
+                                        <MetricResultDisplay
+                                            result={result}
+                                            selection={userSelections.get(stat.key)}
+                                        />
                                     </div>
                                 </article>
                             ))}
@@ -415,6 +589,147 @@ export default async function CrystalBallPage() {
                     </section>
                 );
             })}
+        </div>
+    );
+}
+
+function MetricResultDisplay({
+    result,
+    selection,
+}: {
+    result: MetricResult;
+    selection?: UserSelectionInfo;
+}) {
+    if (result.type === "entity") {
+        if (!result.entries.length) {
+            return (
+                <div className="space-y-2">
+                    <p className="text-sm text-gray-500">No data yet.</p>
+                    {selection ? (
+                        <p className="text-sm text-blue-700">
+                            Your pick: <span className="font-semibold">{selection.label}</span>
+                        </p>
+                    ) : null}
+                </div>
+            );
+        }
+
+        const highlightId = selection?.type === "entity" ? selection.matchId : null;
+        const hasHighlightedRow = highlightId
+            ? result.entries.some((entry) => entry.id === highlightId)
+            : false;
+
+        const notInTopResults = Boolean(highlightId && !hasHighlightedRow);
+
+        return (
+            <div className="space-y-3">
+                <table className="w-full text-sm border">
+                    <thead>
+                        <tr className="bg-gray-100">
+                            <th className="p-2 text-left">Name</th>
+                            <th className="p-2 text-right">Value</th>
+                            <th className="p-2 text-right">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {result.entries.map((entry) => {
+                            const isHighlighted = highlightId === entry.id;
+                            const rowClass = `border-t${isHighlighted ? " bg-blue-50" : ""}`;
+                            const nameClass = `p-2${isHighlighted ? " font-semibold text-blue-700" : ""}`;
+                            const valueClass = `p-2 text-right${isHighlighted ? " font-semibold text-blue-700" : ""}`;
+                            const detailClass = isHighlighted
+                                ? "p-2 text-right text-blue-600"
+                                : "p-2 text-right text-gray-500";
+
+                            return (
+                                <tr key={entry.id} className={rowClass}>
+                                    <td className={nameClass}>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span>{entry.name}</span>
+                                            {isHighlighted ? (
+                                                <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                                                    Your pick
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </td>
+                                    <td className={valueClass}>{entry.formattedValue}</td>
+                                    <td className={detailClass}>{entry.detail ?? "—"}</td>
+                                </tr>
+                            );
+                        })}
+                        {highlightId && !hasHighlightedRow && selection?.type === "entity" ? (
+                            <tr className="border-t bg-blue-50">
+                                <td className="p-2 font-semibold text-blue-700">
+                                    <div className="flex flex-col">
+                                        <span>Your pick: {selection.label}</span>
+                                        <span className="text-xs font-normal text-blue-600">
+                                            Not currently in the top results
+                                        </span>
+                                    </div>
+                                </td>
+                                <td className="p-2 text-right font-semibold text-blue-700">
+                                    {selection.entry ? selection.entry.formattedValue : "—"}
+                                </td>
+                                <td className="p-2 text-right text-blue-600">
+                                    {selection.entry ? selection.entry.detail ?? "—" : "No live data"}
+                                </td>
+                            </tr>
+                        ) : null}
+                    </tbody>
+                </table>
+                {selection?.type === "entity" && highlightId && !selection.entry ? (
+                    <p className="text-sm text-blue-700">Live data for your pick isn&apos;t available yet.</p>
+                ) : null}
+                {selection?.type === "entity" ? (
+                    <p className="text-sm text-blue-700">
+                        Your pick: <span className="font-semibold">{selection.label}</span>
+                        {notInTopResults ? " (not currently in the top results)" : ""}
+                    </p>
+                ) : null}
+            </div>
+        );
+    }
+
+    if (result.type === "number") {
+        return (
+            <div className="space-y-2">
+                <p className="text-lg">
+                    {result.value === null ? "No data yet" : result.value}
+                    {result.unit ? ` ${result.unit}` : ""}
+                </p>
+                {selection ? (
+                    <p className="text-sm text-blue-700">
+                        Your pick: <span className="font-semibold">{selection.label}</span>
+                    </p>
+                ) : null}
+            </div>
+        );
+    }
+
+    if (result.type === "boolean") {
+        return (
+            <div className="space-y-2">
+                <p className="text-lg">
+                    {result.value === null ? "No data yet" : result.value ? "Yes" : "No"}
+                </p>
+                {selection ? (
+                    <p className="text-sm text-blue-700">
+                        Your pick: <span className="font-semibold">{selection.label}</span>
+                    </p>
+                ) : null}
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-2">
+            <p className="text-sm text-gray-500">{result.message ?? "This statistic is not available yet."}</p>
+            {selection ? (
+                <p className="text-sm text-blue-700">
+                    Your pick: <span className="font-semibold">{selection.label}</span>
+                </p>
+            ) : null}
         </div>
     );
 }

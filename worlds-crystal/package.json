@@ -27,6 +27,7 @@
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1",
     "ui": "git+https://github.com/shadcn/ui.git",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 // scripts/ingest-oracle.ts
 import "dotenv/config";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import {MetricResult} from "@/lib/metric-results";
 import {prisma} from "@/lib/prisma";
 
@@ -151,12 +152,100 @@ async function loadCsvText(): Promise<string> {
     );
 }
 
-async function loadCommunityCsvText(): Promise<string | null> {
+type CommunityData = { workbook: XLSX.WorkBook } | { csvText: string };
+
+function isProbablyXlsx(buffer: Buffer, contentType?: string | null) {
+    if (buffer.length < 4) return false;
+    if (contentType && /spreadsheetml|application\/vnd.openxmlformats-officedocument/i.test(contentType)) {
+        return true;
+    }
+    // XLSX files are ZIP archives that start with "PK".
+    return buffer[0] === 0x50 && buffer[1] === 0x4b;
+}
+
+function parseCommunityBuffer(buffer: Buffer, contentType?: string | null): CommunityData | null {
+    if (buffer.length === 0) return null;
+
+    if (isProbablyXlsx(buffer, contentType)) {
+        try {
+            const workbook = XLSX.read(buffer, { type: "buffer" });
+            return { workbook };
+        } catch (error) {
+            console.warn("[community] failed to parse workbook", error);
+            return null;
+        }
+    }
+
+    return { csvText: buffer.toString("utf-8") };
+}
+
+async function downloadCommunityWorkbookFromDrive(fileId: string): Promise<Buffer> {
+    const base = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/export?format=xlsx`;
+
+    let url = base;
+    let res = await fetch(url, { redirect: "manual" });
+    let cookie = res.headers.get("set-cookie") ?? "";
+
+    while (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+        url = new URL(res.headers.get("location")!, url).toString();
+        res = await fetch(url, {
+            redirect: "manual",
+            headers: cookie ? { cookie } : undefined,
+        });
+        cookie = res.headers.get("set-cookie") ?? cookie;
+    }
+
+    let contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("text/html")) {
+        const body = await res.text();
+        const confirmMatch =
+            body.match(/confirm=([0-9A-Za-z_]+)[^"]*/) ||
+            body.match(/name="confirm" value="([0-9A-Za-z_]+)"/);
+
+        if (!confirmMatch) {
+            console.log("[community] workbook download returned HTML, sample:", body.slice(0, 300).replace(/\n/g, "\\n"));
+            throw new Error("Drive returned HTML instead of XLSX. Ensure the sheet is publicly accessible.");
+        }
+
+        const confirm = confirmMatch[1];
+        const confirmedUrl = `${base}&confirm=${confirm}`;
+        res = await fetch(confirmedUrl, {
+            redirect: "manual",
+            headers: cookie ? { cookie } : undefined,
+        });
+
+        while (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+            const nextUrl = new URL(res.headers.get("location")!, confirmedUrl).toString();
+            res = await fetch(nextUrl, {
+                redirect: "manual",
+                headers: cookie ? { cookie } : undefined,
+            });
+        }
+
+        contentType = res.headers.get("content-type") ?? "";
+        if (contentType.includes("text/html")) {
+            const body2 = await res.text();
+            console.log("[community] confirm download still HTML, sample:", body2.slice(0, 300).replace(/\n/g, "\\n"));
+            throw new Error("Drive confirm download returned HTML. Ensure the sheet is publicly accessible.");
+        }
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log(
+        `[community] downloaded workbook from drive (${(buffer.length / 1024).toFixed(1)} KiB, ${contentType || "unknown"})`
+    );
+    return buffer;
+}
+
+async function loadCommunityData(): Promise<CommunityData | null> {
     try {
         if (COMMUNITY_CSV_URL) {
             const res = await fetch(COMMUNITY_CSV_URL);
-            if (!res.ok) throw new Error(`Failed to fetch community CSV (${res.status})`);
-            return await res.text();
+            if (!res.ok) throw new Error(`Failed to fetch community sheet (${res.status})`);
+            const arrayBuffer = await res.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            return parseCommunityBuffer(buffer, res.headers.get("content-type"));
         }
 
         if (COMMUNITY_CSV_PATH) {
@@ -165,14 +254,16 @@ async function loadCommunityCsvText(): Promise<string | null> {
             const resolved = path.isAbsolute(COMMUNITY_CSV_PATH)
                 ? COMMUNITY_CSV_PATH
                 : path.join(process.cwd(), COMMUNITY_CSV_PATH);
-            return await fs.readFile(resolved, "utf-8");
+            const buffer = await fs.readFile(resolved);
+            return parseCommunityBuffer(buffer, undefined);
         }
 
         if (COMMUNITY_DRIVE_FILE_ID) {
-            return await downloadFromGoogleDrive(COMMUNITY_DRIVE_FILE_ID);
+            const buffer = await downloadCommunityWorkbookFromDrive(COMMUNITY_DRIVE_FILE_ID);
+            return parseCommunityBuffer(buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         }
     } catch (error) {
-        console.warn("[community] failed to load CSV", error);
+        console.warn("[community] failed to load community data", error);
         return null;
     }
 
@@ -489,6 +580,253 @@ function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricRe
     return metrics;
 }
 
+type SheetMatrix = string[][];
+
+function sheetToMatrix(workbook: XLSX.WorkBook, sheetName: string): SheetMatrix {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return [];
+
+    const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
+        header: 1,
+        raw: false,
+        blankrows: false,
+    });
+
+    return rows.map((row) =>
+        row.map((cell) => {
+            if (cell === undefined || cell === null) return "";
+            if (typeof cell === "string") return cell.trim();
+            return String(cell).trim();
+        })
+    );
+}
+
+function parseWorkbookChampionSection(matrix: SheetMatrix, header: string) {
+    if (matrix.length < 2) return [] as { name: string; count: number }[];
+    const headerRow = matrix[1];
+    const baseCol = headerRow.findIndex((cell) => cell === header);
+    if (baseCol === -1) return [];
+
+    const entries: { name: string; count: number }[] = [];
+    for (let r = 2; r < matrix.length; r++) {
+        const row = matrix[r];
+        if (!row) continue;
+        const name = row[baseCol + 2]?.trim();
+        const countCell = row[baseCol + 3]?.trim();
+        if (!name && !countCell) break;
+        if (!name) continue;
+
+        const count = Number((countCell ?? "").replace(/[^0-9.]/g, ""));
+        if (Number.isNaN(count)) continue;
+
+        entries.push({ name, count });
+    }
+
+    return entries;
+}
+
+function parseWorkbookPlayerSection(matrix: SheetMatrix, header: string) {
+    if (matrix.length < 2) return [] as { player: string; region: string; team: string; count: number }[];
+    const headerRow = matrix[1];
+    const baseCol = headerRow.findIndex((cell) => cell === header);
+    if (baseCol === -1) return [];
+
+    const entries: { player: string; region: string; team: string; count: number }[] = [];
+    for (let r = 2; r < matrix.length; r++) {
+        const row = matrix[r];
+        if (!row) continue;
+        const player = row[baseCol + 4]?.trim();
+        const countCell = row[baseCol + 5]?.trim();
+        if (!player && !countCell) break;
+        if (!player) continue;
+
+        const count = Number((countCell ?? "").replace(/[^0-9.]/g, ""));
+        if (Number.isNaN(count)) continue;
+
+        const region = row[baseCol + 1]?.trim() ?? "";
+        const team = row[baseCol + 3]?.trim() ?? "";
+        entries.push({ player, region, team, count });
+    }
+
+    return entries;
+}
+
+function parseWorkbookTeamSection(matrix: SheetMatrix, header: string) {
+    if (matrix.length < 2) return [] as { team: string; region: string; count: number }[];
+    const headerRow = matrix[1];
+    const baseCol = headerRow.findIndex((cell) => cell === header);
+    if (baseCol === -1) return [];
+
+    const entries: { team: string; region: string; count: number }[] = [];
+    for (let r = 2; r < matrix.length; r++) {
+        const row = matrix[r];
+        if (!row) continue;
+        const team = row[baseCol + 3]?.trim();
+        const countCell = row[baseCol + 4]?.trim();
+        if (!team && !countCell) break;
+        if (!team) continue;
+
+        const count = Number((countCell ?? "").replace(/[^0-9.]/g, ""));
+        if (Number.isNaN(count)) continue;
+
+        const region = row[baseCol + 1]?.trim() ?? "";
+        entries.push({ team, region, count });
+    }
+
+    return entries;
+}
+
+function parseWorkbookFastestWins(matrix: SheetMatrix, header: string) {
+    if (matrix.length < 2) return [] as {
+        team: string;
+        region: string;
+        opponentRegion: string;
+        opponentTeam: string;
+        time: string;
+    }[];
+    const headerRow = matrix[1];
+    const baseCol = headerRow.findIndex((cell) => cell === header);
+    if (baseCol === -1) return [];
+
+    const entries: {
+        team: string;
+        region: string;
+        opponentRegion: string;
+        opponentTeam: string;
+        time: string;
+    }[] = [];
+
+    for (let r = 2; r < matrix.length; r++) {
+        const row = matrix[r];
+        if (!row) continue;
+        const team = row[baseCol + 3]?.trim();
+        const time = row[baseCol + 8]?.trim();
+        if (!team && !time) break;
+        if (!team || !time) continue;
+
+        const region = row[baseCol + 1]?.trim() ?? "";
+        const opponentRegion = row[baseCol + 5]?.trim() ?? "";
+        const opponentTeam = row[baseCol + 7]?.trim() ?? "";
+
+        entries.push({ team, region, opponentRegion, opponentTeam, time });
+    }
+
+    return entries;
+}
+
+function parseWorkbookEventTotal(matrix: SheetMatrix, header: string) {
+    if (matrix.length < 2) return null as { value: number | null; message?: string } | null;
+    const row = matrix[1];
+    const baseCol = row.findIndex((cell) => cell === header);
+    if (baseCol === -1) return null;
+
+    for (let c = baseCol + 1; c < row.length; c++) {
+        const cell = row[c]?.trim();
+        if (!cell) continue;
+        const value = Number(cell.replace(/[^0-9.]/g, ""));
+        if (Number.isNaN(value)) continue;
+        return { value, message: undefined };
+    }
+
+    return null;
+}
+
+function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Record<string, MetricResult> {
+    const metrics: Record<string, MetricResult> = {};
+
+    const championMatrix = sheetToMatrix(workbook, "2-Champions");
+    const bans = parseWorkbookChampionSection(championMatrix, "Most banned");
+    metrics["champion_total_bans"] = {
+        type: "entity",
+        entries: bans.map((entry) => ({
+            id: entry.name,
+            name: entry.name,
+            formattedValue: `${entry.count} bans`,
+        })),
+    };
+
+    const playerMatrix = sheetToMatrix(workbook, "3-Players");
+    const pentakillers = parseWorkbookPlayerSection(playerMatrix, "Pentakillers");
+    metrics["player_has_pentakill"] = {
+        type: "entity",
+        entries: pentakillers.map((entry) => ({
+            id: entry.player,
+            name: entry.player,
+            formattedValue: `${entry.count} pentakill${entry.count === 1 ? "" : "s"}`,
+            detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
+        })),
+    };
+
+    const firstBloods = parseWorkbookPlayerSection(playerMatrix, "Most First Bloods");
+    metrics["player_first_bloods"] = {
+        type: "entity",
+        entries: firstBloods.map((entry) => ({
+            id: entry.player,
+            name: entry.player,
+            formattedValue: `${entry.count} first blood${entry.count === 1 ? "" : "s"}`,
+            detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
+        })),
+    };
+
+    const teamMatrix = sheetToMatrix(workbook, "4-Teams");
+    const elderDrakes = parseWorkbookTeamSection(teamMatrix, "Most Elder Dragons");
+    metrics["team_elder_drakes_killed"] = {
+        type: "entity",
+        entries: elderDrakes.map((entry) => ({
+            id: entry.team,
+            name: entry.team,
+            formattedValue: `${entry.count} elder${entry.count === 1 ? "" : "s"}`,
+            detail: entry.region || undefined,
+        })),
+    };
+
+    const baronSteals = parseWorkbookTeamSection(teamMatrix, "Most Baron Steals");
+    metrics["team_baron_steals"] = {
+        type: "entity",
+        entries: baronSteals.map((entry) => ({
+            id: entry.team,
+            name: entry.team,
+            formattedValue: `${entry.count} steal${entry.count === 1 ? "" : "s"}`,
+            detail: entry.region || undefined,
+        })),
+    };
+
+    const fastestWins = parseWorkbookFastestWins(teamMatrix, "Fastest win");
+    metrics["team_shortest_win_game_time_seconds"] = {
+        type: "entity",
+        entries: fastestWins.map((entry) => ({
+            id: `${entry.team}-${entry.time}`,
+            name: entry.team,
+            formattedValue: entry.time,
+            detail:
+                [entry.region, "vs", entry.opponentTeam, entry.opponentRegion]
+                    .filter(Boolean)
+                    .join(" ") || undefined,
+        })),
+    };
+
+    const eventMatrix = sheetToMatrix(workbook, "5-Event");
+    const pentakillTotal = parseWorkbookEventTotal(eventMatrix, "Pentakills");
+    metrics["event_total_pentakills"] = {
+        type: "number",
+        value: pentakillTotal?.value ?? null,
+    };
+
+    const baronTotal = parseWorkbookEventTotal(eventMatrix, "Baron Steals");
+    metrics["event_total_baron_steals"] = {
+        type: "number",
+        value: baronTotal?.value ?? null,
+    };
+
+    const reverseSweeps = parseWorkbookEventTotal(eventMatrix, "Reverse sweeps");
+    metrics["event_knockout_reverse_sweeps"] = {
+        type: "number",
+        value: reverseSweeps?.value ?? null,
+    };
+
+    return metrics;
+}
+
 async function main() {
     const raw = await loadCsvText();
     // Strip UTF-8 BOM if present
@@ -645,10 +983,12 @@ async function main() {
 
     console.log(`Games created: ${created}, updated: ${updated}, player-rows inserted: ${statsInserted}`);
 
-    const communityCsv = await loadCommunityCsvText();
-    if (communityCsv) {
-        const matrix = parseCommunityMatrix(communityCsv.replace(/^\uFEFF/, ""));
-        const communityMetrics = buildCommunityMetricResults(matrix);
+    const communityData = await loadCommunityData();
+    if (communityData) {
+        const communityMetrics =
+            "workbook" in communityData
+                ? buildCommunityMetricResultsFromWorkbook(communityData.workbook)
+                : buildCommunityMetricResults(parseCommunityMatrix(communityData.csvText.replace(/^\uFEFF/, "")));
         const entries = Object.entries(communityMetrics);
 
         await ensureExternalMetricTable();
@@ -666,7 +1006,7 @@ async function main() {
 
         console.log(`[community] synced ${entries.length} metrics from community sheet`);
     } else {
-        console.warn("[community] skipped syncing metrics (no CSV available)");
+        console.warn("[community] skipped syncing metrics (no data available)");
     }
 }
 

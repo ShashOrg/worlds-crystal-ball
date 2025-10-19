@@ -100,12 +100,20 @@ function extractTrailingUnit(value: string | undefined | null): string | null {
 
 function stripUnitSuffix(value: string, unitCandidates: Set<string>): string {
     const trimmed = value.trim();
-    const match = trimmed.match(/^([-+]?\d+(?:[.,]\d+)?)\s+([a-z][a-z\s\/-]*)$/i);
+    if (!trimmed) {
+        return trimmed;
+    }
+
+    const match = trimmed.match(/^([-+]?\d+(?:[.,]\d+)?)(?:\s+([a-z][a-z\s\/-]*))?$/i);
     if (!match) {
         return trimmed;
     }
 
     const [, numericPart, unitPart] = match;
+    if (!unitPart) {
+        return numericPart;
+    }
+
     const normalizedUnit = normalizeUnitCandidate(unitPart);
     if (normalizedUnit && unitCandidates.has(normalizedUnit)) {
         return numericPart;
@@ -207,6 +215,10 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
     const getValueWithUnit = (entry: MetricEntityEntry) => {
         const display = getValueDisplay(entry);
         if (!entry.valueUnit || display === "—") {
+            return display;
+        }
+        const normalizedUnit = normalizeUnitCandidate(entry.valueUnit);
+        if (normalizedUnit && unitCandidates.has(normalizedUnit)) {
             return display;
         }
         return `${display} ${entry.valueUnit}`;

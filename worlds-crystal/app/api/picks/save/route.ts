@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { STATISTICS } from "@/lib/statistics";
+import type { Prisma } from "@prisma/client";
 
 type SelectionData = {
     championId: number | null;
@@ -85,6 +86,24 @@ export async function POST(req: Request) {
         },
     });
 
+    const userPickSelectionDelegate = (prisma as unknown as {
+        userPickSelection?: Prisma.UserPickSelectionDelegate<false>;
+    }).userPickSelection;
+
+    if (!userPickSelectionDelegate) {
+        console.error(
+            "Prisma client is missing the userPickSelection delegate. Run `pnpm prisma generate` to regenerate the client."
+        );
+        return NextResponse.json(
+            {
+                ok: false,
+                error:
+                    "Server is missing the regenerated Prisma client. Run `pnpm prisma generate` after pulling the latest schema.",
+            },
+            { status: 500 }
+        );
+    }
+
     for (const stat of STATISTICS) {
         const raw = form.get(stat.key);
         const parsed = parseSelectionValue(stat.key, raw);
@@ -96,13 +115,13 @@ export async function POST(req: Request) {
         };
 
         if (!parsed) {
-            await prisma.userPickSelection
+            await userPickSelectionDelegate
                 .delete({ where })
                 .catch(() => undefined);
             continue;
         }
 
-        await prisma.userPickSelection.upsert({
+        await userPickSelectionDelegate.upsert({
             where,
             update: parsed,
             create: {

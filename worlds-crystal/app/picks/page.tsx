@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
+import type { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -32,11 +33,17 @@ export default async function PicksPage() {
         }),
     ]);
 
-    const selections = existing
-        ? await prisma.userPickSelection.findMany({
+    const userPickSelectionDelegate = (prisma as unknown as {
+        userPickSelection?: Prisma.UserPickSelectionDelegate<false>;
+    }).userPickSelection;
+
+    const selections = existing && userPickSelectionDelegate
+        ? await userPickSelectionDelegate.findMany({
               where: { userPickId: existing.id },
           })
         : [];
+
+    const missingSelectionDelegate = !userPickSelectionDelegate;
 
     const teamNames = new Set<string>();
     for (const player of players) {
@@ -150,6 +157,18 @@ export default async function PicksPage() {
     return (
         <div className="max-w-3xl mx-auto p-6 space-y-6">
             <h1 className="text-2xl font-semibold">My Crystal Ball Picks — {season}</h1>
+
+            {missingSelectionDelegate ? (
+                <div className="rounded border border-yellow-500 bg-yellow-50 p-4 text-sm text-yellow-900">
+                    <p className="font-semibold">Configuration required</p>
+                    <p>
+                        The server Prisma client has not been regenerated for the new Crystal Ball
+                        picks schema. Please run <code>pnpm prisma generate</code> (or the equivalent
+                        Prisma generate command) after pulling the latest code so selections can be
+                        saved and restored correctly.
+                    </p>
+                </div>
+            ) : null}
 
             <form action="/api/picks/save" method="post" className="space-y-6">
                 <input type="hidden" name="season" value={season} />

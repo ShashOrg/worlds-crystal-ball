@@ -4,6 +4,7 @@ import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefi
 import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { EntityMetricTable } from "./EntityMetricTable";
 
 const CURRENT_SEASON = 2025;
 
@@ -570,14 +571,14 @@ export default async function CrystalBallPage() {
                             <h2 className="text-2xl font-semibold">{category}</h2>
                             <p className="text-sm text-gray-600">Live results for {category.toLowerCase()} questions.</p>
                         </div>
-                        <div className="space-y-6">
+                        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                             {items.map(({ stat, result }) => (
-                                <article key={stat.key} className="border rounded-md">
+                                <article key={stat.key} className="border rounded-md flex flex-col h-full">
                                     <header className="border-b px-4 py-3 bg-gray-50">
                                         <h3 className="font-semibold">{stat.question}</h3>
                                         <p className="text-xs text-gray-500">Worth {stat.points} points</p>
                                     </header>
-                                    <div className="p-4">
+                                    <div className="p-4 flex-1">
                                         <MetricResultDisplay
                                             result={result}
                                             selection={userSelections.get(stat.key)}
@@ -614,80 +615,11 @@ function MetricResultDisplay({
             );
         }
 
-        const highlightId = selection?.type === "entity" ? selection.matchId : null;
-        const hasHighlightedRow = highlightId
-            ? result.entries.some((entry) => entry.id === highlightId)
-            : false;
-
-        const notInTopResults = Boolean(highlightId && !hasHighlightedRow);
-
         return (
-            <div className="space-y-3">
-                <table className="w-full text-sm border">
-                    <thead>
-                        <tr className="bg-gray-100">
-                            <th className="p-2 text-left">Name</th>
-                            <th className="p-2 text-right">Value</th>
-                            <th className="p-2 text-right">Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {result.entries.map((entry) => {
-                            const isHighlighted = highlightId === entry.id;
-                            const rowClass = `border-t${isHighlighted ? " bg-blue-50" : ""}`;
-                            const nameClass = `p-2${isHighlighted ? " font-semibold text-blue-700" : ""}`;
-                            const valueClass = `p-2 text-right${isHighlighted ? " font-semibold text-blue-700" : ""}`;
-                            const detailClass = isHighlighted
-                                ? "p-2 text-right text-blue-600"
-                                : "p-2 text-right text-gray-500";
-
-                            return (
-                                <tr key={entry.id} className={rowClass}>
-                                    <td className={nameClass}>
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span>{entry.name}</span>
-                                            {isHighlighted ? (
-                                                <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-                                                    Your pick
-                                                </span>
-                                            ) : null}
-                                        </div>
-                                    </td>
-                                    <td className={valueClass}>{entry.formattedValue}</td>
-                                    <td className={detailClass}>{entry.detail ?? "—"}</td>
-                                </tr>
-                            );
-                        })}
-                        {highlightId && !hasHighlightedRow && selection?.type === "entity" ? (
-                            <tr className="border-t bg-blue-50">
-                                <td className="p-2 font-semibold text-blue-700">
-                                    <div className="flex flex-col">
-                                        <span>Your pick: {selection.label}</span>
-                                        <span className="text-xs font-normal text-blue-600">
-                                            Not currently in the top results
-                                        </span>
-                                    </div>
-                                </td>
-                                <td className="p-2 text-right font-semibold text-blue-700">
-                                    {selection.entry ? selection.entry.formattedValue : "—"}
-                                </td>
-                                <td className="p-2 text-right text-blue-600">
-                                    {selection.entry ? selection.entry.detail ?? "—" : "No live data"}
-                                </td>
-                            </tr>
-                        ) : null}
-                    </tbody>
-                </table>
-                {selection?.type === "entity" && highlightId && !selection.entry ? (
-                    <p className="text-sm text-blue-700">Live data for your pick isn&apos;t available yet.</p>
-                ) : null}
-                {selection?.type === "entity" ? (
-                    <p className="text-sm text-blue-700">
-                        Your pick: <span className="font-semibold">{selection.label}</span>
-                        {notInTopResults ? " (not currently in the top results)" : ""}
-                    </p>
-                ) : null}
-            </div>
+            <EntityMetricTable
+                entries={result.entries}
+                selection={selection?.type === "entity" ? selection : undefined}
+            />
         );
     }
 

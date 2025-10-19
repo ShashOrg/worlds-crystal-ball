@@ -144,6 +144,7 @@ export const STATISTICS: StatisticDefinition[] = [
         question: "How many Pentakills will there be?",
         entity_type: "event_total",
         metric_id: "event_total_pentakills",
+        options: ["0-1", "2-3", "4-5", "6+"],
     },
     {
         key: "event_baron_steals_total",
@@ -161,6 +162,7 @@ export const STATISTICS: StatisticDefinition[] = [
         question: "How many reverse sweeps will there be in the Worlds Knockout Stage (out of 7 total Bo5s)?",
         entity_type: "event_total",
         metric_id: "event_knockout_reverse_sweeps",
+        options: ["0", "1", "2+"],
     },
     {
         key: "event_unique_champions_picked_total",

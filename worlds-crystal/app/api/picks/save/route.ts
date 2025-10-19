@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { isUserPickSelectionTableReady } from "@/lib/prisma-helpers";
+import { isStatisticTableReady, isUserPickSelectionTableReady } from "@/lib/prisma-helpers";
 import { STATISTICS } from "@/lib/statistics";
 import type { Prisma } from "@prisma/client";
 
@@ -92,9 +92,24 @@ export async function POST(req: Request) {
         },
     });
 
-    const userPickSelectionDelegate = (prisma as unknown as {
+    const { statistic: statisticDelegate, userPickSelection: userPickSelectionDelegate } = prisma as unknown as {
+        statistic?: Prisma.StatisticDelegate<false>;
         userPickSelection?: Prisma.UserPickSelectionDelegate<false>;
-    }).userPickSelection;
+    };
+
+    if (!statisticDelegate) {
+        console.error(
+            "Prisma client is missing the Statistic delegate. Run `pnpm prisma generate` to regenerate the client."
+        );
+        return NextResponse.json(
+            {
+                ok: false,
+                error:
+                    "Server is missing the regenerated Prisma client. Run `pnpm prisma generate` after pulling the latest schema.",
+            },
+            { status: 500 }
+        );
+    }
 
     if (!userPickSelectionDelegate) {
         console.error(
@@ -110,7 +125,25 @@ export async function POST(req: Request) {
         );
     }
 
-    const selectionTableReady = await isUserPickSelectionTableReady();
+    const [statisticTableReady, selectionTableReady] = await Promise.all([
+        isStatisticTableReady(),
+        isUserPickSelectionTableReady(),
+    ]);
+
+    if (!statisticTableReady) {
+        console.error(
+            "The database is missing the Statistic table. Run `pnpm prisma migrate deploy` (or `pnpm prisma migrate dev`) to apply migrations."
+        );
+        return NextResponse.json(
+            {
+                ok: false,
+                error:
+                    "Database migrations are pending. Run `pnpm prisma migrate deploy` (or `pnpm prisma migrate dev`) to create the new tables, then regenerate the Prisma client.",
+            },
+            { status: 500 }
+        );
+    }
+
     if (!selectionTableReady) {
         console.error(
             "The database is missing the UserPickSelection table. Run `pnpm prisma migrate deploy` (or `pnpm prisma migrate dev`) to apply migrations."
@@ -120,6 +153,43 @@ export async function POST(req: Request) {
                 ok: false,
                 error:
                     "Database migrations are pending. Run `pnpm prisma migrate deploy` (or `pnpm prisma migrate dev`) to create the new tables, then regenerate the Prisma client.",
+            },
+            { status: 500 }
+        );
+    }
+
+    try {
+        await prisma.$transaction(
+            STATISTICS.map((stat) =>
+                statisticDelegate.upsert({
+                    where: { key: stat.key },
+                    update: {
+                        category: stat.category,
+                        question: stat.question,
+                        entityType: stat.entity_type,
+                        metricId: stat.metric_id,
+                        points: stat.points,
+                        constraints: stat.constraints ?? null,
+                    },
+                    create: {
+                        key: stat.key,
+                        category: stat.category,
+                        question: stat.question,
+                        entityType: stat.entity_type,
+                        metricId: stat.metric_id,
+                        points: stat.points,
+                        constraints: stat.constraints ?? null,
+                    },
+                })
+            )
+        );
+    } catch (error) {
+        console.error("Failed to sync statistic definitions", error);
+        return NextResponse.json(
+            {
+                ok: false,
+                error:
+                    "Failed to sync Crystal Ball statistics. Verify database migrations have run and try again after regenerating the Prisma client.",
             },
             { status: 500 }
         );

@@ -13,10 +13,7 @@ model Champion {
   riotId         Int?
   name           String
   GameChampStats GameChampStats[]
-
-  // back-relations for UserPick
-  userPicksMostPicked UserPick[] @relation("MostPicked")
-  userPicksHighestWR  UserPick[] @relation("HighestWR")
+  pickSelections UserPickSelection[] @relation("UserPickSelectionChampion")
 }
 
 model Player {
@@ -24,9 +21,7 @@ model Player {
   handle         String           @unique
   team           String?
   GameChampStats GameChampStats[]
-
-  // back-relation for UserPick
-  userPicksHighestKDA UserPick[] @relation("HighestKDA")
+  pickSelections UserPickSelection[] @relation("UserPickSelectionPlayer")
 }
 
 model Game {
@@ -68,22 +63,54 @@ enum Side {
   RED
 }
 
+model Statistic {
+  key         String                @id
+  category    String
+  question    String
+  entityType  StatisticEntityType
+  metricId    String
+  points      Int
+  constraints Json?
+
+  picks UserPickSelection[]
+}
+
+enum StatisticEntityType {
+  champion
+  player
+  team
+  event_total
+  boolean
+}
+
 model UserPick {
   id     BigInt @id @default(autoincrement())
   userId String
   season Int
 
-  mostPickedChampionId Int?
-  highestWrChampionId  Int?
-  highestKdaPlayerId   Int?
-  teemoPicked          Boolean?
-
-  mostPickedChampion Champion? @relation("MostPicked", fields: [mostPickedChampionId], references: [id])
-  highestWrChampion  Champion? @relation("HighestWR", fields: [highestWrChampionId], references: [id])
-  highestKdaPlayer   Player?   @relation("HighestKDA", fields: [highestKdaPlayerId], references: [id])
-  User               User      @relation(fields: [userId], references: [id])
+  selections UserPickSelection[]
+  User       User   @relation(fields: [userId], references: [id])
 
   @@unique([userId, season])
+}
+
+model UserPickSelection {
+  id           BigInt  @id @default(autoincrement())
+  userPickId   BigInt
+  statisticKey String
+  championId   Int?
+  playerId     Int?
+  teamName     String?
+  valueNumber  Float?
+  valueBoolean Boolean?
+  valueText    String?
+
+  userPick  UserPick  @relation(fields: [userPickId], references: [id], onDelete: Cascade)
+  statistic Statistic @relation(fields: [statisticKey], references: [key])
+  champion  Champion? @relation("UserPickSelectionChampion", fields: [championId], references: [id])
+  player    Player?   @relation("UserPickSelectionPlayer", fields: [playerId], references: [id])
+
+  @@unique([userPickId, statisticKey], name: "user_pick_statistic_unique")
 }
 
 model User {

@@ -594,7 +594,7 @@ export default async function CrystalBallPage() {
     const categories = Object.keys(groupedResults);
 
     return (
-        <div className="mx-auto max-w-screen-2xl space-y-10 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
             {categories.map((category) => {

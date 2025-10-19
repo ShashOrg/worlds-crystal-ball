@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { MetricEntityEntry } from "@/lib/metric-results";
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+}
+
 const INITIAL_VISIBLE_COUNT = 5;
 
 type EntitySelectionInfo = {
@@ -62,6 +66,13 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
             return typeof entry.value === "number"
                 ? entry.value.toLocaleString()
                 : entry.value;
+        }
+        if (entry.valueUnit && entry.formattedValue) {
+            const normalized = entry.formattedValue.trim();
+            const unitPattern = new RegExp(`\\s*${escapeRegExp(entry.valueUnit)}$`, "i");
+            if (unitPattern.test(normalized)) {
+                return normalized.replace(unitPattern, "");
+            }
         }
         return entry.formattedValue ?? "—";
     };
@@ -126,9 +137,6 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                             </td>
                             <td className="p-2 text-right font-semibold text-blue-700">
                                 {selection.entry ? getValueDisplay(selection.entry) : "—"}
-                                {selection.entry?.valueUnit && selection.entry.value !== undefined
-                                    ? ` ${selection.entry.valueUnit}`
-                                    : ""}
                             </td>
                             {showDetailColumn ? (
                                 <td className="p-2 text-right text-blue-600">

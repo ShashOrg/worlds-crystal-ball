@@ -2,6 +2,8 @@ export interface MetricEntityEntry {
     id: string;
     name: string;
     formattedValue: string;
+    value?: number | string;
+    valueUnit?: string;
     detail?: string;
 }
 

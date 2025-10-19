@@ -497,6 +497,8 @@ function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricRe
         entries: bans.map((entry) => ({
             id: entry.name,
             name: entry.name,
+            value: entry.count,
+            valueUnit: "bans",
             formattedValue: `${entry.count} bans`,
         })),
     };
@@ -507,6 +509,8 @@ function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricRe
         entries: pentakillers.map((entry) => ({
             id: entry.player,
             name: entry.player,
+            value: entry.count,
+            valueUnit: `pentakill${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} pentakill${entry.count === 1 ? "" : "s"}`,
             detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
         })),
@@ -518,6 +522,8 @@ function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricRe
         entries: firstBloods.map((entry) => ({
             id: entry.player,
             name: entry.player,
+            value: entry.count,
+            valueUnit: `first blood${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} first blood${entry.count === 1 ? "" : "s"}`,
             detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
         })),
@@ -529,6 +535,8 @@ function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricRe
         entries: elderDrakes.map((entry) => ({
             id: entry.team,
             name: entry.team,
+            value: entry.count,
+            valueUnit: `elder${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} elder${entry.count === 1 ? "" : "s"}`,
             detail: entry.region || undefined,
         })),
@@ -540,6 +548,8 @@ function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricRe
         entries: baronSteals.map((entry) => ({
             id: entry.team,
             name: entry.team,
+            value: entry.count,
+            valueUnit: `steal${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} steal${entry.count === 1 ? "" : "s"}`,
             detail: entry.region || undefined,
         })),
@@ -551,6 +561,7 @@ function buildCommunityMetricResults(matrix: CsvMatrix): Record<string, MetricRe
         entries: fastestWins.map((entry) => ({
             id: `${entry.team}-${entry.time}`,
             name: entry.team,
+            value: entry.time,
             formattedValue: entry.time,
             detail: ["vs", entry.opponentTeam, entry.opponentRegion].filter(Boolean).join(" ") || undefined,
         })),
@@ -741,6 +752,8 @@ function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Recor
         entries: bans.map((entry) => ({
             id: entry.name,
             name: entry.name,
+            value: entry.count,
+            valueUnit: "bans",
             formattedValue: `${entry.count} bans`,
         })),
     };
@@ -752,6 +765,8 @@ function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Recor
         entries: pentakillers.map((entry) => ({
             id: entry.player,
             name: entry.player,
+            value: entry.count,
+            valueUnit: `pentakill${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} pentakill${entry.count === 1 ? "" : "s"}`,
             detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
         })),
@@ -763,6 +778,8 @@ function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Recor
         entries: firstBloods.map((entry) => ({
             id: entry.player,
             name: entry.player,
+            value: entry.count,
+            valueUnit: `first blood${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} first blood${entry.count === 1 ? "" : "s"}`,
             detail: [entry.team, entry.region].filter(Boolean).join(" • ") || undefined,
         })),
@@ -775,6 +792,8 @@ function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Recor
         entries: elderDrakes.map((entry) => ({
             id: entry.team,
             name: entry.team,
+            value: entry.count,
+            valueUnit: `elder${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} elder${entry.count === 1 ? "" : "s"}`,
             detail: entry.region || undefined,
         })),
@@ -786,6 +805,8 @@ function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Recor
         entries: baronSteals.map((entry) => ({
             id: entry.team,
             name: entry.team,
+            value: entry.count,
+            valueUnit: `steal${entry.count === 1 ? "" : "s"}`,
             formattedValue: `${entry.count} steal${entry.count === 1 ? "" : "s"}`,
             detail: entry.region || undefined,
         })),
@@ -797,6 +818,7 @@ function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Recor
         entries: fastestWins.map((entry) => ({
             id: `${entry.team}-${entry.time}`,
             name: entry.team,
+            value: entry.time,
             formattedValue: entry.time,
             detail:
                 [entry.region, "vs", entry.opponentTeam, entry.opponentRegion]

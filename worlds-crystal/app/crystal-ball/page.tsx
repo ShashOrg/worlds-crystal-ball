@@ -4,6 +4,7 @@ import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefi
 import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetricTable";
 
 const CURRENT_SEASON = 2025;
 
@@ -101,7 +102,13 @@ async function getChampionSelectionEntry(
     switch (stat.metric_id) {
         case "champion_total_picks": {
             const picks = await prisma.gameChampStats.count({ where: { championId } });
-            return { id: String(championId), name, formattedValue: `${picks} picks` };
+            return {
+                id: String(championId),
+                name,
+                value: picks,
+                valueUnit: "picks",
+                formattedValue: `${picks} picks`,
+            };
         }
         case "champion_total_kills": {
             const kills = await prisma.gameChampStats.aggregate({
@@ -111,6 +118,8 @@ async function getChampionSelectionEntry(
             return {
                 id: String(championId),
                 name,
+                value: kills._sum.kills ?? 0,
+                valueUnit: "kills",
                 formattedValue: `${kills._sum.kills ?? 0} kills`,
             };
         }
@@ -120,20 +129,24 @@ async function getChampionSelectionEntry(
                 prisma.gameChampStats.count({ where: { championId } }),
                 prisma.gameChampStats.count({ where: { championId, win: true } }),
             ]);
+            const gamesDisplay = games.toLocaleString();
+
             if (games === 0) {
                 return {
                     id: String(championId),
                     name,
+                    value: "0.0%",
                     formattedValue: "0.0%",
-                    detail: "0 games",
+                    detail: gamesDisplay,
                 };
             }
             const wr = (wins / games) * 100;
             return {
                 id: String(championId),
                 name,
+                value: `${wr.toFixed(1)}%`,
                 formattedValue: `${wr.toFixed(1)}%`,
-                detail: `${games} games`,
+                detail: gamesDisplay,
             };
         }
         default:
@@ -158,11 +171,13 @@ async function getPlayerSelectionEntry(
             const deaths = aggregate._sum.deaths ?? 0;
             const games = aggregate._count?._all ?? 0;
             const kda = (kills + assists) / Math.max(1, deaths);
+            const gamesDisplay = games.toLocaleString();
             return {
                 id: String(playerId),
                 name,
+                value: kda.toFixed(2),
                 formattedValue: kda.toFixed(2),
-                detail: `${games} games`,
+                detail: gamesDisplay,
             };
         }
         case "player_unique_champions": {
@@ -174,6 +189,8 @@ async function getPlayerSelectionEntry(
             return {
                 id: String(playerId),
                 name,
+                value: champions.length,
+                valueUnit: "champions",
                 formattedValue: `${champions.length} champions`,
             };
         }
@@ -186,6 +203,8 @@ async function getPlayerSelectionEntry(
             return {
                 id: String(playerId),
                 name,
+                value: kills,
+                valueUnit: "kills",
                 formattedValue: `${kills} kills`,
             };
         }
@@ -204,6 +223,8 @@ async function getTeamSelectionEntry(stat: StatisticDefinition, teamName: string
             return {
                 id: teamName,
                 name: teamName,
+                value: aggregate._sum.kills ?? 0,
+                valueUnit: "kills",
                 formattedValue: `${aggregate._sum.kills ?? 0} kills`,
             };
         }
@@ -216,6 +237,8 @@ async function getTeamSelectionEntry(stat: StatisticDefinition, teamName: string
             return {
                 id: teamName,
                 name: teamName,
+                value: champions.length,
+                valueUnit: "champions",
                 formattedValue: `${champions.length} champions`,
             };
         }
@@ -240,6 +263,8 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = groups.map((g) => ({
             id: g.championId.toString(),
             name: cmap.get(g.championId) ?? `Champion ${g.championId}`,
+            value: g._count.championId,
+            valueUnit: "picks",
             formattedValue: `${g._count.championId} picks`,
         }));
         return { type: "entity", entries };
@@ -276,8 +301,9 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = ranked.map((r) => ({
             id: r.championId.toString(),
             name: cmap.get(r.championId) ?? `Champion ${r.championId}`,
+            value: `${(r.wr * 100).toFixed(1)}%`,
             formattedValue: `${(r.wr * 100).toFixed(1)}%`,
-            detail: `${r.games} games`,
+            detail: r.games.toLocaleString(),
         }));
         return { type: "entity", entries };
     },
@@ -310,8 +336,9 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = ranked.map((r) => ({
             id: r.championId.toString(),
             name: cmap.get(r.championId) ?? `Champion ${r.championId}`,
+            value: `${(r.wr * 100).toFixed(1)}%`,
             formattedValue: `${(r.wr * 100).toFixed(1)}%`,
-            detail: `${r.games} games`,
+            detail: r.games.toLocaleString(),
         }));
         return { type: "entity", entries };
     },
@@ -330,6 +357,8 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = groups.map((g) => ({
             id: g.championId.toString(),
             name: cmap.get(g.championId) ?? `Champion ${g.championId}`,
+            value: g._sum.kills ?? 0,
+            valueUnit: "kills",
             formattedValue: `${g._sum.kills ?? 0} kills`,
         }));
         return { type: "entity", entries };
@@ -360,8 +389,9 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = valid.map((v) => ({
             id: v.playerId.toString(),
             name: pmap.get(v.playerId) ?? `Player ${v.playerId}`,
+            value: v.kda.toFixed(2),
             formattedValue: v.kda.toFixed(2),
-            detail: `${v.games} games`,
+            detail: v.games.toLocaleString(),
         }));
         return { type: "entity", entries };
     },
@@ -388,6 +418,8 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = ranked.map((r) => ({
             id: r.playerId.toString(),
             name: pmap.get(r.playerId) ?? `Player ${r.playerId}`,
+            value: r.count,
+            valueUnit: "champions",
             formattedValue: `${r.count} champions`,
         }));
         return { type: "entity", entries };
@@ -416,6 +448,8 @@ const metricHandlers: Record<string, MetricComputation> = {
             .map((g) => ({
                 id: (g.playerId as number).toString(),
                 name: pmap.get(g.playerId as number) ?? `Player ${g.playerId}`,
+                value: g._max.kills ?? 0,
+                valueUnit: "kills",
                 formattedValue: `${g._max.kills ?? 0} kills`,
             }));
         return { type: "entity", entries };
@@ -451,6 +485,8 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = ranked.map((r) => ({
             id: r.team,
             name: r.team,
+            value: r.kills,
+            valueUnit: "kills",
             formattedValue: `${r.kills} kills`,
         }));
         return { type: "entity", entries };
@@ -478,6 +514,8 @@ const metricHandlers: Record<string, MetricComputation> = {
         const entries = ranked.map((r) => ({
             id: r.team,
             name: r.team,
+            value: r.count,
+            valueUnit: "champions",
             formattedValue: `${r.count} champions`,
         }));
         return { type: "entity", entries };
@@ -559,7 +597,7 @@ export default async function CrystalBallPage() {
     const categories = Object.keys(groupedResults);
 
     return (
-        <div className="max-w-6xl mx-auto p-6 space-y-10">
+        <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
             {categories.map((category) => {
@@ -570,15 +608,16 @@ export default async function CrystalBallPage() {
                             <h2 className="text-2xl font-semibold">{category}</h2>
                             <p className="text-sm text-gray-600">Live results for {category.toLowerCase()} questions.</p>
                         </div>
-                        <div className="space-y-6">
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                             {items.map(({ stat, result }) => (
-                                <article key={stat.key} className="border rounded-md">
+                                <article key={stat.key} className="border rounded-md flex flex-col h-full">
                                     <header className="border-b px-4 py-3 bg-gray-50">
                                         <h3 className="font-semibold">{stat.question}</h3>
                                         <p className="text-xs text-gray-500">Worth {stat.points} points</p>
                                     </header>
-                                    <div className="p-4">
+                                    <div className="p-4 flex-1">
                                         <MetricResultDisplay
+                                            stat={stat}
                                             result={result}
                                             selection={userSelections.get(stat.key)}
                                         />
@@ -593,10 +632,63 @@ export default async function CrystalBallPage() {
     );
 }
 
+function getEntityTableColumns(stat: StatisticDefinition): EntityMetricTableColumns {
+    const baseName =
+        stat.entity_type === "champion"
+            ? "Champion"
+            : stat.entity_type === "player"
+            ? "Player"
+            : stat.entity_type === "team"
+            ? "Team"
+            : "Name";
+
+    const withDetail = (value: string, detail: string = "Details"): EntityMetricTableColumns => ({
+        name: baseName,
+        value,
+        detail,
+    });
+
+    switch (stat.metric_id) {
+        case "champion_total_picks":
+            return withDetail("Picks");
+        case "champion_total_bans":
+            return withDetail("Bans");
+        case "champion_winrate_min5":
+        case "champion_winrate_min5_low":
+            return withDetail("Win Rate", "Games Played");
+        case "champion_total_kills":
+            return withDetail("Kills");
+        case "player_kda_highest":
+            return withDetail("KDA", "Games Played");
+        case "player_unique_champions":
+            return withDetail("Champions Played");
+        case "player_has_pentakill":
+            return withDetail("Pentakills");
+        case "player_first_bloods":
+            return withDetail("First Bloods");
+        case "player_max_kills_single_game":
+            return withDetail("Kills (Single Game)");
+        case "team_elder_drakes_killed":
+            return withDetail("Elder Dragons");
+        case "team_baron_steals":
+            return withDetail("Baron Steals");
+        case "team_shortest_win_game_time_seconds":
+            return withDetail("Duration", "Matchup");
+        case "team_total_kills":
+            return withDetail("Kills");
+        case "team_unique_champions_played":
+            return withDetail("Champions Played");
+        default:
+            return withDetail("Value");
+    }
+}
+
 function MetricResultDisplay({
+    stat,
     result,
     selection,
 }: {
+    stat: StatisticDefinition;
     result: MetricResult;
     selection?: UserSelectionInfo;
 }) {
@@ -614,80 +706,12 @@ function MetricResultDisplay({
             );
         }
 
-        const highlightId = selection?.type === "entity" ? selection.matchId : null;
-        const hasHighlightedRow = highlightId
-            ? result.entries.some((entry) => entry.id === highlightId)
-            : false;
-
-        const notInTopResults = Boolean(highlightId && !hasHighlightedRow);
-
         return (
-            <div className="space-y-3">
-                <table className="w-full text-sm border">
-                    <thead>
-                        <tr className="bg-gray-100">
-                            <th className="p-2 text-left">Name</th>
-                            <th className="p-2 text-right">Value</th>
-                            <th className="p-2 text-right">Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {result.entries.map((entry) => {
-                            const isHighlighted = highlightId === entry.id;
-                            const rowClass = `border-t${isHighlighted ? " bg-blue-50" : ""}`;
-                            const nameClass = `p-2${isHighlighted ? " font-semibold text-blue-700" : ""}`;
-                            const valueClass = `p-2 text-right${isHighlighted ? " font-semibold text-blue-700" : ""}`;
-                            const detailClass = isHighlighted
-                                ? "p-2 text-right text-blue-600"
-                                : "p-2 text-right text-gray-500";
-
-                            return (
-                                <tr key={entry.id} className={rowClass}>
-                                    <td className={nameClass}>
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span>{entry.name}</span>
-                                            {isHighlighted ? (
-                                                <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-                                                    Your pick
-                                                </span>
-                                            ) : null}
-                                        </div>
-                                    </td>
-                                    <td className={valueClass}>{entry.formattedValue}</td>
-                                    <td className={detailClass}>{entry.detail ?? "—"}</td>
-                                </tr>
-                            );
-                        })}
-                        {highlightId && !hasHighlightedRow && selection?.type === "entity" ? (
-                            <tr className="border-t bg-blue-50">
-                                <td className="p-2 font-semibold text-blue-700">
-                                    <div className="flex flex-col">
-                                        <span>Your pick: {selection.label}</span>
-                                        <span className="text-xs font-normal text-blue-600">
-                                            Not currently in the top results
-                                        </span>
-                                    </div>
-                                </td>
-                                <td className="p-2 text-right font-semibold text-blue-700">
-                                    {selection.entry ? selection.entry.formattedValue : "—"}
-                                </td>
-                                <td className="p-2 text-right text-blue-600">
-                                    {selection.entry ? selection.entry.detail ?? "—" : "No live data"}
-                                </td>
-                            </tr>
-                        ) : null}
-                    </tbody>
-                </table>
-                {selection?.type === "entity" && highlightId && !selection.entry ? (
-                    <p className="text-sm text-blue-700">Live data for your pick isn&apos;t available yet.</p>
-                ) : null}
-                {selection?.type === "entity" ? (
-                    <p className="text-sm text-blue-700">
-                        Your pick: <span className="font-semibold">{selection.label}</span>
-                        {notInTopResults ? " (not currently in the top results)" : ""}
-                    </p>
-                ) : null}
-            </div>
+            <EntityMetricTable
+                entries={result.entries}
+                selection={selection?.type === "entity" ? selection : undefined}
+                columns={getEntityTableColumns(stat)}
+            />
         );
     }
 

@@ -9,7 +9,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <body className="min-h-screen bg-white text-gray-900">
         <Providers>
             <header className="border-b">
-                <nav className="max-w-6xl mx-auto flex items-center justify-between p-4 text-sm">
+                <nav className="mx-auto flex w-full max-w-[95rem] items-center justify-between p-4 text-sm">
                     <div className="flex gap-6">
                         <Link href="/" className="font-semibold">Worlds Crystal Ball</Link>
                         <Link href="/crystal-ball" className="hover:underline">Crystal Ball</Link>
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <AuthButton />
                 </nav>
             </header>
-            <main className="max-w-6xl mx-auto p-6">{children}</main>
+            <main className="mx-auto w-full max-w-[95rem] p-6">{children}</main>
         </Providers>
         </body>
         </html>

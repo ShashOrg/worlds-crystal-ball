@@ -8,6 +8,111 @@ import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetric
 
 const CURRENT_SEASON = 2025;
 
+type GameSummarySource = {
+    id: bigint;
+    oracleGameId: string | null;
+    dateUtc: Date;
+    blueTeam: string;
+    redTeam: string;
+};
+
+type CrystalBallSummary = {
+    totalGames: number;
+    totalMatches: number;
+    maxRemainingMatches: number | null;
+    configuredMatchTarget: number | null;
+};
+
+function normalizeOracleMatchId(raw: string | null | undefined): string | null {
+    if (!raw) {
+        return null;
+    }
+
+    const trimmed = raw.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    let candidate = trimmed.replace(/\s+/g, "_");
+
+    const withoutGameSuffix = candidate.replace(/(?:[_-]?G(?:AME)?\d+)+$/i, "");
+    if (withoutGameSuffix) {
+        candidate = withoutGameSuffix;
+    }
+
+    candidate = candidate.replace(/[_-]+$/g, "");
+
+    return candidate ? candidate.toUpperCase() : trimmed.toUpperCase();
+}
+
+function deriveMatchIdentifier(game: GameSummarySource): string {
+    const normalized = normalizeOracleMatchId(game.oracleGameId);
+    if (normalized) {
+        return normalized;
+    }
+
+    const dateKey = Number.isNaN(game.dateUtc.getTime())
+        ? "UNKNOWN-DATE"
+        : game.dateUtc.toISOString().slice(0, 10);
+    const teams = [game.blueTeam || "BLUE", game.redTeam || "RED"]
+        .map((team) => team.trim().toUpperCase())
+        .sort()
+        .join("_VS_");
+
+    return `${dateKey}_${teams}_${game.id.toString()}`;
+}
+
+function parsePositiveInteger(value: string | undefined | null): number | null {
+    if (!value) {
+        return null;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+        return null;
+    }
+
+    const rounded = Math.floor(parsed);
+    return rounded > 0 ? rounded : null;
+}
+
+async function getCrystalBallSummary(): Promise<CrystalBallSummary> {
+    const games = await prisma.game.findMany({
+        select: {
+            id: true,
+            oracleGameId: true,
+            dateUtc: true,
+            blueTeam: true,
+            redTeam: true,
+        },
+        orderBy: { dateUtc: "asc" },
+    });
+
+    const matchIds = new Set<string>();
+    for (const game of games) {
+        matchIds.add(deriveMatchIdentifier(game));
+    }
+
+    const configuredTargetRaw =
+        process.env.NEXT_PUBLIC_TOTAL_MATCHES ??
+        process.env.NEXT_PUBLIC_PROJECTED_TOTAL_MATCHES ??
+        process.env.CRYSTAL_BALL_TOTAL_MATCHES ??
+        process.env.PROJECTED_TOTAL_MATCHES ??
+        null;
+
+    const configuredMatchTarget = parsePositiveInteger(configuredTargetRaw);
+
+    const maxRemainingMatches =
+        configuredMatchTarget !== null ? Math.max(0, configuredMatchTarget - matchIds.size) : null;
+
+    return {
+        totalGames: games.length,
+        totalMatches: matchIds.size,
+        maxRemainingMatches,
+        configuredMatchTarget,
+    };
+}
+
 type SelectionWithRelations = Prisma.UserPickSelectionGetPayload<{
     include: { champion: true; player: true };
 }>;
@@ -548,6 +653,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
+    const summaryPromise = getCrystalBallSummary();
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -594,11 +700,28 @@ export default async function CrystalBallPage() {
         resultsByCategory.get(entry.stat.category)!.push(entry);
     }
 
+    const summary = await summaryPromise;
     const categories = Object.keys(groupedResults);
 
     return (
         <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
+
+            <section className="grid gap-4 sm:grid-cols-3">
+                <SummaryStat label="Games Played" value={summary.totalGames} />
+                <SummaryStat label="Matches Played" value={summary.totalMatches} />
+                <SummaryStat
+                    label="Max Remaining Matches"
+                    value={summary.maxRemainingMatches}
+                    helperText={
+                        summary.maxRemainingMatches === null
+                            ? "Projected match total not configured"
+                            : summary.configuredMatchTarget
+                            ? `Out of ${summary.configuredMatchTarget.toLocaleString()} projected matches`
+                            : undefined
+                    }
+                />
+            </section>
 
             {categories.map((category) => {
                 const items = resultsByCategory.get(category) ?? [];
@@ -649,6 +772,26 @@ export default async function CrystalBallPage() {
                     </section>
                 );
             })}
+        </div>
+    );
+}
+
+function SummaryStat({
+    label,
+    value,
+    helperText,
+}: {
+    label: string;
+    value: number | null;
+    helperText?: string;
+}) {
+    const displayValue = value !== null ? value.toLocaleString() : "—";
+
+    return (
+        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-sm font-medium text-gray-500">{label}</p>
+            <p className="text-2xl font-semibold text-gray-900">{displayValue}</p>
+            {helperText ? <p className="text-xs text-gray-500">{helperText}</p> : null}
         </div>
     );
 }

@@ -187,14 +187,6 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
             : "Not currently in the top results"
         : null;
 
-    const selectionNoteSuffix = highlightId
-        ? hasHighlightedRow
-            ? highlightInVisible
-                ? ""
-                : " (outside the current top 5)"
-            : " (not currently in the top results)"
-        : "";
-
     const showDetailColumn = Boolean(columns.detail);
 
     const getValueDisplay = (entry: MetricEntityEntry) => {
@@ -297,18 +289,6 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                         {showAll ? "Show less" : "Show more"}
                     </button>
                 </div>
-            ) : null}
-            {selection ? (
-                <p className="text-sm text-blue-700">
-                    Your pick: <span className="font-semibold">{selection.label}</span>
-                    {selection.entry ? (
-                        <>
-                            {" "}
-                            <span className="font-semibold">{getValueWithUnit(selection.entry)}</span>
-                        </>
-                    ) : null}
-                    {selectionNoteSuffix}
-                </p>
             ) : null}
             {selection && !selection.entry ? (
                 <p className="text-sm text-blue-700">Live data for your pick isn&apos;t available yet.</p>

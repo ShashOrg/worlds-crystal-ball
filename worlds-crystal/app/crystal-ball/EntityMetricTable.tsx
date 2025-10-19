@@ -63,9 +63,17 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
 
     const getValueDisplay = (entry: MetricEntityEntry) => {
         if (entry.value !== undefined && entry.value !== null) {
-            return typeof entry.value === "number"
-                ? entry.value.toLocaleString()
-                : entry.value;
+            if (typeof entry.value === "number") {
+                return entry.value.toLocaleString();
+            }
+            if (typeof entry.value === "string" && entry.valueUnit) {
+                const normalizedValue = entry.value.trim();
+                const unitPattern = new RegExp(`\\s*${escapeRegExp(entry.valueUnit)}$`, "i");
+                if (unitPattern.test(normalizedValue)) {
+                    return normalizedValue.replace(unitPattern, "");
+                }
+            }
+            return entry.value;
         }
         if (entry.valueUnit && entry.formattedValue) {
             const normalized = entry.formattedValue.trim();

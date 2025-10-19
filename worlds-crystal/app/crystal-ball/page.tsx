@@ -608,7 +608,7 @@ export default async function CrystalBallPage() {
                             <h2 className="text-2xl font-semibold">{category}</h2>
                             <p className="text-sm text-gray-600">Live results for {category.toLowerCase()} questions.</p>
                         </div>
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                             {items.map(({ stat, result }) => (
                                 <article key={stat.key} className="border rounded-md flex flex-col h-full">
                                     <header className="border-b px-4 py-3 bg-gray-50">

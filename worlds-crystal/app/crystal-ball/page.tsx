@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
 import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 import { getServerSession } from "next-auth";
@@ -7,111 +8,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetricTable";
 
 const CURRENT_SEASON = 2025;
-
-type GameSummarySource = {
-    id: bigint;
-    oracleGameId: string | null;
-    dateUtc: Date;
-    blueTeam: string;
-    redTeam: string;
-};
-
-type CrystalBallSummary = {
-    totalGames: number;
-    totalMatches: number;
-    maxRemainingMatches: number | null;
-    configuredMatchTarget: number | null;
-};
-
-function normalizeOracleMatchId(raw: string | null | undefined): string | null {
-    if (!raw) {
-        return null;
-    }
-
-    const trimmed = raw.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    let candidate = trimmed.replace(/\s+/g, "_");
-
-    const withoutGameSuffix = candidate.replace(/(?:[_-]?G(?:AME)?\d+)+$/i, "");
-    if (withoutGameSuffix) {
-        candidate = withoutGameSuffix;
-    }
-
-    candidate = candidate.replace(/[_-]+$/g, "");
-
-    return candidate ? candidate.toUpperCase() : trimmed.toUpperCase();
-}
-
-function deriveMatchIdentifier(game: GameSummarySource): string {
-    const normalized = normalizeOracleMatchId(game.oracleGameId);
-    if (normalized) {
-        return normalized;
-    }
-
-    const dateKey = Number.isNaN(game.dateUtc.getTime())
-        ? "UNKNOWN-DATE"
-        : game.dateUtc.toISOString().slice(0, 10);
-    const teams = [game.blueTeam || "BLUE", game.redTeam || "RED"]
-        .map((team) => team.trim().toUpperCase())
-        .sort()
-        .join("_VS_");
-
-    return `${dateKey}_${teams}_${game.id.toString()}`;
-}
-
-function parsePositiveInteger(value: string | undefined | null): number | null {
-    if (!value) {
-        return null;
-    }
-
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) {
-        return null;
-    }
-
-    const rounded = Math.floor(parsed);
-    return rounded > 0 ? rounded : null;
-}
-
-async function getCrystalBallSummary(): Promise<CrystalBallSummary> {
-    const games = await prisma.game.findMany({
-        select: {
-            id: true,
-            oracleGameId: true,
-            dateUtc: true,
-            blueTeam: true,
-            redTeam: true,
-        },
-        orderBy: { dateUtc: "asc" },
-    });
-
-    const matchIds = new Set<string>();
-    for (const game of games) {
-        matchIds.add(deriveMatchIdentifier(game));
-    }
-
-    const configuredTargetRaw =
-        process.env.NEXT_PUBLIC_TOTAL_MATCHES ??
-        process.env.NEXT_PUBLIC_PROJECTED_TOTAL_MATCHES ??
-        process.env.CRYSTAL_BALL_TOTAL_MATCHES ??
-        process.env.PROJECTED_TOTAL_MATCHES ??
-        null;
-
-    const configuredMatchTarget = parsePositiveInteger(configuredTargetRaw);
-
-    const maxRemainingMatches =
-        configuredMatchTarget !== null ? Math.max(0, configuredMatchTarget - matchIds.size) : null;
-
-    return {
-        totalGames: games.length,
-        totalMatches: matchIds.size,
-        maxRemainingMatches,
-        configuredMatchTarget,
-    };
-}
 
 type SelectionWithRelations = Prisma.UserPickSelectionGetPayload<{
     include: { champion: true; player: true };
@@ -653,7 +549,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
-    const summaryPromise = getCrystalBallSummary();
+    const summaryPromise = getCrystalBallSummary(CURRENT_SEASON);
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -713,13 +609,7 @@ export default async function CrystalBallPage() {
                 <SummaryStat
                     label="Max Remaining Matches"
                     value={summary.maxRemainingMatches}
-                    helperText={
-                        summary.maxRemainingMatches === null
-                            ? "Projected match total not configured"
-                            : summary.configuredMatchTarget
-                            ? `Out of ${summary.configuredMatchTarget.toLocaleString()} projected matches`
-                            : undefined
-                    }
+                    helperText={formatRemainingMatchesHelper(summary)}
                 />
             </section>
 
@@ -774,6 +664,23 @@ export default async function CrystalBallPage() {
             })}
         </div>
     );
+}
+
+function formatRemainingMatchesHelper(summary: CrystalBallSummary): string | undefined {
+    if (summary.totalPossibleMatches === null) {
+        return "Schedule metadata unavailable";
+    }
+
+    const parts: string[] = [];
+    if (summary.totalScheduledMatches !== null) {
+        parts.push(`${summary.totalScheduledMatches.toLocaleString()} scheduled`);
+    }
+    if (summary.totalPotentialMatches !== null && summary.totalPotentialMatches > 0) {
+        parts.push(`${summary.totalPotentialMatches.toLocaleString()} potential`);
+    }
+
+    const breakdown = parts.length ? ` (${parts.join(" + ")})` : "";
+    return `Out of ${summary.totalPossibleMatches.toLocaleString()} possible matches${breakdown}`;
 }
 
 function SummaryStat({

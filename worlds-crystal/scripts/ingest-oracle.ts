@@ -2,8 +2,9 @@
 import "dotenv/config";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import {MetricResult} from "@/lib/metric-results";
-import {prisma} from "@/lib/prisma";
+import { MetricResult } from "@/lib/metric-results";
+import { prisma } from "@/lib/prisma";
+import { recomputeAndStoreCrystalBallSummary } from "@/lib/crystal-ball-summary";
 
 async function ensureExternalMetricTable() {
     const exists = await prisma.$queryRaw<{exists: boolean}[]>`
@@ -29,10 +30,15 @@ async function ensureExternalMetricTable() {
 
 // ---- Config you can tweak
 const YEAR = process.env.ORACLE_YEAR ?? "2025";
+const SEASON = Number.parseInt(YEAR, 10);
 
 const COMMUNITY_DRIVE_FILE_ID = process.env.COMMUNITY_DRIVE_FILE_ID ?? "1xt2vnIOPW1J7e9xYCyLDKAbqJiF7r1jMg7BeLPyeaDc";
 const COMMUNITY_CSV_URL = process.env.COMMUNITY_CSV_URL ?? "";
 const COMMUNITY_CSV_PATH = process.env.COMMUNITY_CSV_PATH ?? "";
+
+if (Number.isNaN(SEASON)) {
+    throw new Error(`Invalid ORACLE_YEAR value: ${YEAR}`);
+}
 
 type Row = {
     gameid: string;
@@ -1005,6 +1011,12 @@ async function main() {
 
     console.log(`Games created: ${created}, updated: ${updated}, player-rows inserted: ${statsInserted}`);
 
+    await ensureExternalMetricTable();
+    const summary = await recomputeAndStoreCrystalBallSummary(SEASON);
+    console.log(
+        `[crystal-ball] summary updated: games=${summary.totalGames}, matches=${summary.totalMatches}, maxRemaining=${summary.maxRemainingMatches ?? "n/a"}`,
+    );
+
     const communityData = await loadCommunityData();
     if (communityData) {
         const communityMetrics =
@@ -1012,8 +1024,6 @@ async function main() {
                 ? buildCommunityMetricResultsFromWorkbook(communityData.workbook)
                 : buildCommunityMetricResults(parseCommunityMatrix(communityData.csvText.replace(/^\uFEFF/, "")));
         const entries = Object.entries(communityMetrics);
-
-        await ensureExternalMetricTable();
 
         for (const [metricId, data] of entries) {
             const payload = JSON.stringify(data);

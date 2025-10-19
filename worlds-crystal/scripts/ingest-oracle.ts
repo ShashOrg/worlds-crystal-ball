@@ -630,11 +630,14 @@ async function main() {
         const entries = Object.entries(communityMetrics);
 
         for (const [metricId, data] of entries) {
-            await prisma.externalMetric.upsert({
-                where: { metricId },
-                update: { data },
-                create: { metricId, data },
-            });
+            const payload = JSON.stringify(data);
+            await prisma.$executeRaw`
+                INSERT INTO "ExternalMetric" ("metricId", "data")
+                VALUES (${metricId}, ${payload}::jsonb)
+                ON CONFLICT ("metricId") DO UPDATE
+                SET "data" = ${payload}::jsonb,
+                    "updatedAt" = NOW();
+            `;
         }
 
         console.log(`[community] synced ${entries.length} metrics from community sheet`);

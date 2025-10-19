@@ -7,9 +7,14 @@ type MetricComputation = (stat: StatisticDefinition) => Promise<MetricResult>;
 const notAvailable = (message?: string): MetricResult => ({ type: "unavailable", message });
 
 async function getExternalMetricResult(metricId: string): Promise<MetricResult | null> {
-    const external = await prisma.externalMetric.findUnique({ where: { metricId } });
-    if (!external) return null;
-    return external.data as MetricResult;
+    const rows = await prisma.$queryRaw<{ data: unknown }[]>`
+        SELECT "data"
+        FROM "ExternalMetric"
+        WHERE "metricId" = ${metricId}
+        LIMIT 1
+    `;
+    if (!rows.length) return null;
+    return rows[0].data as MetricResult;
 }
 
 const metricHandlers: Record<string, MetricComputation> = {

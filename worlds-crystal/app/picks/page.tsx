@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isUserPickSelectionTableReady } from "@/lib/prisma-helpers";
 import { groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 import type { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
@@ -24,26 +25,28 @@ export default async function PicksPage() {
     }
 
     const season = 2025; // make this dynamic later
-    const [champions, players, games, existing] = await Promise.all([
+    const [champions, players, games, existing, selectionTableReady] = await Promise.all([
         prisma.champion.findMany({ orderBy: { name: "asc" } }),
         prisma.player.findMany({ orderBy: { handle: "asc" } }),
         prisma.game.findMany({ select: { blueTeam: true, redTeam: true, winnerTeam: true } }),
         prisma.userPick.findUnique({
             where: { userId_season: { userId: session.user.id, season } },
         }),
+        isUserPickSelectionTableReady(),
     ]);
 
     const userPickSelectionDelegate = (prisma as unknown as {
         userPickSelection?: Prisma.UserPickSelectionDelegate<false>;
     }).userPickSelection;
 
-    const selections = existing && userPickSelectionDelegate
+    const selections = existing && userPickSelectionDelegate && selectionTableReady
         ? await userPickSelectionDelegate.findMany({
               where: { userPickId: existing.id },
           })
         : [];
 
     const missingSelectionDelegate = !userPickSelectionDelegate;
+    const missingSelectionTable = !selectionTableReady;
 
     const teamNames = new Set<string>();
     for (const player of players) {
@@ -166,6 +169,19 @@ export default async function PicksPage() {
                         picks schema. Please run <code>pnpm prisma generate</code> (or the equivalent
                         Prisma generate command) after pulling the latest code so selections can be
                         saved and restored correctly.
+                    </p>
+                </div>
+            ) : null}
+
+            {!missingSelectionDelegate && missingSelectionTable ? (
+                <div className="rounded border border-yellow-500 bg-yellow-50 p-4 text-sm text-yellow-900">
+                    <p className="font-semibold">Database migration required</p>
+                    <p>
+                        The database is missing the <code>UserPickSelection</code> table that stores
+                        Crystal Ball statistic selections. Apply the latest migrations with
+                        <code>pnpm prisma migrate deploy</code> (or
+                        <code>pnpm prisma migrate dev</code> in local development) and then
+                        regenerate the Prisma client.
                     </p>
                 </div>
             ) : null}

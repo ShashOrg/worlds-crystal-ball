@@ -609,21 +609,42 @@ export default async function CrystalBallPage() {
                             <p className="text-sm text-gray-600">Live results for {category.toLowerCase()} questions.</p>
                         </div>
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-                            {items.map(({ stat, result }) => (
-                                <article key={stat.key} className="border rounded-md flex flex-col h-full">
-                                    <header className="border-b px-4 py-3 bg-gray-50">
-                                        <h3 className="font-semibold">{stat.question}</h3>
-                                        <p className="text-xs text-gray-500">Worth {stat.points} points</p>
-                                    </header>
-                                    <div className="p-4 flex-1">
-                                        <MetricResultDisplay
-                                            stat={stat}
-                                            result={result}
-                                            selection={userSelections.get(stat.key)}
-                                        />
-                                    </div>
-                                </article>
-                            ))}
+                            {items.map(({ stat, result }) => {
+                                const selection = userSelections.get(stat.key);
+                                const selectionFailed = selection
+                                    ? isSelectionFailed(stat, selection, result)
+                                    : false;
+                                const articleClassName = [
+                                    "border rounded-md flex flex-col h-full",
+                                    selectionFailed ? "border-red-300 bg-red-50/70" : "",
+                                ]
+                                    .filter(Boolean)
+                                    .join(" ");
+                                const headerClassName = selectionFailed
+                                    ? "border-b px-4 py-3 bg-red-50"
+                                    : "border-b px-4 py-3 bg-gray-50";
+
+                                return (
+                                    <article
+                                        key={stat.key}
+                                        className={articleClassName}
+                                        data-selection-status={selectionFailed ? "failed" : undefined}
+                                    >
+                                        <header className={headerClassName}>
+                                            <h3 className="font-semibold">{stat.question}</h3>
+                                            <p className="text-xs text-gray-500">Worth {stat.points} points</p>
+                                        </header>
+                                        <div className="p-4 flex-1">
+                                            <MetricResultDisplay
+                                                stat={stat}
+                                                result={result}
+                                                selection={selection}
+                                                isSelectionFailed={selectionFailed}
+                                            />
+                                        </div>
+                                    </article>
+                                );
+                            })}
                         </div>
                     </section>
                 );
@@ -687,15 +708,24 @@ function MetricResultDisplay({
     stat,
     result,
     selection,
+    isSelectionFailed,
 }: {
     stat: StatisticDefinition;
     result: MetricResult;
     selection?: UserSelectionInfo;
+    isSelectionFailed: boolean;
 }) {
+    const failureNotice = isSelectionFailed ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            Your pick can no longer hit.
+        </p>
+    ) : null;
+
     if (result.type === "entity") {
         if (!result.entries.length) {
             return (
                 <div className="space-y-2">
+                    {failureNotice}
                     <p className="text-sm text-gray-500">No data yet.</p>
                     {selection ? (
                         <p className="text-sm text-blue-700">
@@ -707,17 +737,21 @@ function MetricResultDisplay({
         }
 
         return (
-            <EntityMetricTable
-                entries={result.entries}
-                selection={selection?.type === "entity" ? selection : undefined}
-                columns={getEntityTableColumns(stat)}
-            />
+            <div className="space-y-2">
+                {failureNotice}
+                <EntityMetricTable
+                    entries={result.entries}
+                    selection={selection?.type === "entity" ? selection : undefined}
+                    columns={getEntityTableColumns(stat)}
+                />
+            </div>
         );
     }
 
     if (result.type === "number") {
         return (
             <div className="space-y-2">
+                {failureNotice}
                 <p className="text-lg">
                     {result.value === null ? "No data yet" : result.value}
                     {result.unit ? ` ${result.unit}` : ""}
@@ -734,6 +768,7 @@ function MetricResultDisplay({
     if (result.type === "boolean") {
         return (
             <div className="space-y-2">
+                {failureNotice}
                 <p className="text-lg">
                     {result.value === null ? "No data yet" : result.value ? "Yes" : "No"}
                 </p>
@@ -748,6 +783,7 @@ function MetricResultDisplay({
 
     return (
         <div className="space-y-2">
+            {failureNotice}
             <p className="text-sm text-gray-500">{result.message ?? "This statistic is not available yet."}</p>
             {selection ? (
                 <p className="text-sm text-blue-700">
@@ -756,4 +792,78 @@ function MetricResultDisplay({
             ) : null}
         </div>
     );
+}
+
+type SelectionRange = { min: number; max: number };
+
+function parseSelectionRange(label: string): SelectionRange | null {
+    const trimmed = label.trim();
+    if (!trimmed) return null;
+
+    const lessThanMatch = trimmed.match(/^Less than\s+(\d+)$/i);
+    if (lessThanMatch) {
+        const value = Number.parseInt(lessThanMatch[1] ?? "", 10);
+        if (Number.isNaN(value)) return null;
+        return { min: Number.NEGATIVE_INFINITY, max: value - 1 };
+    }
+
+    const rangeMatch = trimmed.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+        const min = Number.parseInt(rangeMatch[1] ?? "", 10);
+        const max = Number.parseInt(rangeMatch[2] ?? "", 10);
+        if (Number.isNaN(min) || Number.isNaN(max)) return null;
+        return { min, max };
+    }
+
+    const atLeastMatch = trimmed.match(/^(\d+)\s*\+$/);
+    if (atLeastMatch) {
+        const min = Number.parseInt(atLeastMatch[1] ?? "", 10);
+        if (Number.isNaN(min)) return null;
+        return { min, max: Number.POSITIVE_INFINITY };
+    }
+
+    const orMoreMatch = trimmed.match(/^(\d+)\s+or\s+more$/i);
+    if (orMoreMatch) {
+        const min = Number.parseInt(orMoreMatch[1] ?? "", 10);
+        if (Number.isNaN(min)) return null;
+        return { min, max: Number.POSITIVE_INFINITY };
+    }
+
+    const orLessMatch = trimmed.match(/^(\d+)\s+or\s+less$/i);
+    if (orLessMatch) {
+        const max = Number.parseInt(orLessMatch[1] ?? "", 10);
+        if (Number.isNaN(max)) return null;
+        return { min: Number.NEGATIVE_INFINITY, max };
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+        const value = Number.parseInt(trimmed, 10);
+        if (Number.isNaN(value)) return null;
+        return { min: value, max: value };
+    }
+
+    return null;
+}
+
+function isSelectionFailed(stat: StatisticDefinition, selection: UserSelectionInfo, result: MetricResult): boolean {
+    if (stat.entity_type === "event_total" && selection.type === "value") {
+        if (result.type === "number" && typeof result.value === "number") {
+            const range = parseSelectionRange(selection.label);
+            if (!range) return false;
+            if (Number.isFinite(range.max) && result.value > range.max) {
+                return true;
+            }
+        }
+    }
+
+    if (stat.entity_type === "boolean" && selection.type === "value") {
+        if (result.type === "boolean" && result.value !== null) {
+            const normalized = selection.label.trim().toLowerCase();
+            if (result.value && normalized === "no") {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }

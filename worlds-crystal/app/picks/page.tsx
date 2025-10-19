@@ -29,15 +29,14 @@ export default async function PicksPage() {
         prisma.game.findMany({ select: { blueTeam: true, redTeam: true, winnerTeam: true } }),
         prisma.userPick.findUnique({
             where: { userId_season: { userId: session.user.id, season } },
-            include: {
-                selections: {
-                    include: {
-                        statistic: true,
-                    },
-                },
-            },
         }),
     ]);
+
+    const selections = existing
+        ? await prisma.userPickSelection.findMany({
+              where: { userPickId: existing.id },
+          })
+        : [];
 
     const teamNames = new Set<string>();
     for (const player of players) {
@@ -50,7 +49,7 @@ export default async function PicksPage() {
     }
     const teams = Array.from(teamNames).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
-    const selectionMap = new Map(existing?.selections.map((s) => [s.statisticKey, s]));
+    const selectionMap = new Map(selections.map((s) => [s.statisticKey, s]));
     const statsByCategory = groupStatisticsByCategory();
 
     const renderInput = (stat: StatisticDefinition) => {

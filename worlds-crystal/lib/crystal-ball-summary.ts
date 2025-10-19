@@ -20,6 +20,35 @@ export type CrystalBallSummary = {
 
 const SUMMARY_METRIC_ID = "crystal_ball_summary";
 
+type ExternalMetricDelegate = typeof prisma extends { externalMetric: infer Delegate }
+    ? Delegate
+    : never;
+
+function getExternalMetricDelegate(): ExternalMetricDelegate | null {
+    const candidate = (prisma as unknown as { externalMetric?: ExternalMetricDelegate }).externalMetric;
+    if (!candidate) {
+        return null;
+    }
+
+    const hasFindUnique = typeof (candidate as { findUnique?: unknown }).findUnique === "function";
+    const hasUpsert = typeof (candidate as { upsert?: unknown }).upsert === "function";
+
+    if (!hasFindUnique || !hasUpsert) {
+        return null;
+    }
+
+    return candidate;
+}
+
+function safeParseJson(value: string): unknown {
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        console.warn("[crystal-ball] failed to parse persisted summary JSON", error);
+        return null;
+    }
+}
+
 export function normalizeOracleMatchId(raw: string | null | undefined): string | null {
     if (!raw) {
         return null;
@@ -130,13 +159,33 @@ function isCrystalBallSummary(value: unknown): value is CrystalBallSummary {
 }
 
 export async function loadPersistedCrystalBallSummary(): Promise<CrystalBallSummary | null> {
-    const record = await prisma.externalMetric.findUnique({
-        where: { metricId: SUMMARY_METRIC_ID },
-    });
+    const delegate = getExternalMetricDelegate();
+    if (delegate) {
+        const record = await delegate.findUnique({
+            where: { metricId: SUMMARY_METRIC_ID },
+        });
 
-    if (!record) return null;
+        if (!record) return null;
 
-    const data = record.data as unknown;
+        const data = record.data as unknown;
+        if (!isCrystalBallSummary(data)) {
+            return null;
+        }
+
+        return data;
+    }
+
+    const rows = (await prisma.$queryRawUnsafe<{ data: unknown }[]>(
+        `SELECT "data" FROM "ExternalMetric" WHERE "metricId" = $1 LIMIT 1`,
+        SUMMARY_METRIC_ID,
+    )) as { data: unknown }[];
+
+    if (!rows.length) {
+        return null;
+    }
+
+    const rawData = rows[0]?.data;
+    const data = typeof rawData === "string" ? safeParseJson(rawData) : rawData;
     if (!isCrystalBallSummary(data)) {
         return null;
     }
@@ -145,11 +194,24 @@ export async function loadPersistedCrystalBallSummary(): Promise<CrystalBallSumm
 }
 
 export async function persistCrystalBallSummary(summary: CrystalBallSummary): Promise<void> {
-    await prisma.externalMetric.upsert({
-        where: { metricId: SUMMARY_METRIC_ID },
-        update: { data: summary },
-        create: { metricId: SUMMARY_METRIC_ID, data: summary },
-    });
+    const delegate = getExternalMetricDelegate();
+    if (delegate) {
+        await delegate.upsert({
+            where: { metricId: SUMMARY_METRIC_ID },
+            update: { data: summary },
+            create: { metricId: SUMMARY_METRIC_ID, data: summary },
+        });
+        return;
+    }
+
+    await prisma.$executeRawUnsafe(
+        `INSERT INTO "ExternalMetric" ("metricId", "data")
+         VALUES ($1, $2::jsonb)
+         ON CONFLICT ("metricId") DO UPDATE
+         SET "data" = EXCLUDED."data", "updatedAt" = NOW()`,
+        SUMMARY_METRIC_ID,
+        JSON.stringify(summary),
+    );
 }
 
 export async function recomputeAndStoreCrystalBallSummary(

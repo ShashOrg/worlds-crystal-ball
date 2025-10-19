@@ -1,5 +1,6 @@
 /* prisma/seed.ts */
 import { PrismaClient } from "@prisma/client";
+import { STATISTICS } from "../lib/statistics";
 
 interface ChampionData {
     id: string;
@@ -9,7 +10,7 @@ interface ChampionData {
 
 const prisma = new PrismaClient();
 
-async function main() {
+async function seedChampions() {
     const ddVersion = "14.20.1"; // example; use the Worlds patch version you want
     const url = `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/data/en_US/champion.json`;
     const res = await fetch(url);
@@ -31,6 +32,38 @@ async function main() {
     }
 
     console.log(`Seeded ${champions.length} champions`);
+}
+
+async function seedStatistics() {
+    for (const stat of STATISTICS) {
+        await prisma.statistic.upsert({
+            where: { key: stat.key },
+            update: {
+                category: stat.category,
+                question: stat.question,
+                entityType: stat.entity_type,
+                metricId: stat.metric_id,
+                points: stat.points,
+                constraints: stat.constraints ?? null,
+            },
+            create: {
+                key: stat.key,
+                category: stat.category,
+                question: stat.question,
+                entityType: stat.entity_type,
+                metricId: stat.metric_id,
+                points: stat.points,
+                constraints: stat.constraints ?? null,
+            },
+        });
+    }
+
+    console.log(`Seeded ${STATISTICS.length} statistics`);
+}
+
+async function main() {
+    await seedChampions();
+    await seedStatistics();
 }
 
 main().finally(() => prisma.$disconnect());

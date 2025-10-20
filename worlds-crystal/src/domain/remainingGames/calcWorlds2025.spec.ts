@@ -4,7 +4,7 @@ import { computeRemainingGamesWorlds2025 } from "./calcWorlds2025";
 import type { Match } from "@/src/lib/lolesportsClient";
 
 const mockGetStageSchedule = vi.fn<
-  (stageId: string) => Promise<{ matches: Match[] }>
+  (stageId: string) => Promise<{ stageId: string; matches: Match[] }>
 >();
 
 vi.mock("@/src/lib/lolesportsClient", () => ({
@@ -13,7 +13,7 @@ vi.mock("@/src/lib/lolesportsClient", () => ({
 
 const SWISS_STAGE_ID = "113475482880934049";
 
-const defaultStageSchedule = { matches: [] as Match[] };
+const defaultStageSchedule = { stageId: SWISS_STAGE_ID, matches: [] as Match[] };
 let nextMatchId = 0;
 
 describe("computeRemainingGamesWorlds2025", () => {
@@ -66,7 +66,7 @@ describe("computeRemainingGamesWorlds2025", () => {
       ),
     ];
 
-    mockGetStageSchedule.mockResolvedValueOnce({ matches });
+    mockGetStageSchedule.mockResolvedValueOnce({ stageId: SWISS_STAGE_ID, matches });
 
     const result = await computeRemainingGamesWorlds2025();
 
@@ -132,7 +132,7 @@ describe("computeRemainingGamesWorlds2025", () => {
       }),
     ];
 
-    mockGetStageSchedule.mockResolvedValueOnce({ matches });
+    mockGetStageSchedule.mockResolvedValueOnce({ stageId: SWISS_STAGE_ID, matches });
 
     const result = await computeRemainingGamesWorlds2025();
 

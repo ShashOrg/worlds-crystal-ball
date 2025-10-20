@@ -86,8 +86,60 @@ function partitionByState(matches: Match[]) {
   };
 }
 
+export function fallbackRemainingWorlds2025(): RemainingBreakdown {
+  const swissMin =
+    SWISS_TOTAL_BO1 * WINS_REQUIRED_BY_SERIES[1] +
+    SWISS_TOTAL_BO3_SERIES * WINS_REQUIRED_BY_SERIES[3];
+  const swissMax =
+    SWISS_TOTAL_BO1 * MAX_MAPS_BY_SERIES[1] +
+    SWISS_TOTAL_BO3_SERIES * MAX_MAPS_BY_SERIES[3];
+  const knockoutsMin =
+    KNOCKOUT_TOTAL_BO5_SERIES * WINS_REQUIRED_BY_SERIES[5];
+  const knockoutsMax =
+    KNOCKOUT_TOTAL_BO5_SERIES * MAX_MAPS_BY_SERIES[5];
+
+  return {
+    swiss: {
+      min: swissMin,
+      max: swissMax,
+      details: {
+        bo1Left: SWISS_TOTAL_BO1,
+        bo3SeriesLeft: SWISS_TOTAL_BO3_SERIES,
+        liveBo1: 0,
+        liveBo3RemainingMaps: 0,
+      },
+    },
+    knockouts: {
+      min: knockoutsMin,
+      max: knockoutsMax,
+      details: {
+        seriesLeft: KNOCKOUT_TOTAL_BO5_SERIES,
+        liveBo5RemainingMaps: 0,
+      },
+    },
+    total: {
+      min: swissMin + knockoutsMin,
+      max: swissMax + knockoutsMax,
+    },
+    played: {
+      maps: 0,
+      series: 0,
+    },
+    seriesLeft: {
+      total:
+        SWISS_TOTAL_BO1 + SWISS_TOTAL_BO3_SERIES + KNOCKOUT_TOTAL_BO5_SERIES,
+    },
+  };
+}
+
 export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakdown> {
   const swissSchedule = await getStageSchedule(SWISS_STAGE_ID);
+  const knockoutMatches = await getKnockoutMatches();
+
+  if (swissSchedule.matches.length === 0 && knockoutMatches.length === 0) {
+    return fallbackRemainingWorlds2025();
+  }
+
   const { bo1: swissBo1Matches, bo3: swissBo3Matches } = splitMatchesByLength(
     swissSchedule.matches,
   );
@@ -128,7 +180,6 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
     liveBo3RemainingMaps +
     bo3RemainingUnstarted * SWISS_BO3_MAX_MAPS_PER_SERIES;
 
-  const knockoutMatches = await getKnockoutMatches();
   const knockoutStates = partitionByState(knockoutMatches);
   const effectiveBo5Completed = clampMatches(
     knockoutStates.completed,

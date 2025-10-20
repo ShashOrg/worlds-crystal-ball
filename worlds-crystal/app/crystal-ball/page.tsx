@@ -5,8 +5,7 @@ import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetricTable";
-import { headers } from "next/headers";
-import type { RemainingBreakdown } from "@/src/domain/remainingGames/calcWorlds2025";
+import { computeRemainingGamesWorlds2025 } from "@/src/domain/remainingGames/calcWorlds2025";
 
 const CURRENT_SEASON = 2025;
 
@@ -550,7 +549,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
-    const remainingPromise = fetchWorlds2025Remaining();
+    const remainingPromise = computeRemainingGamesWorlds2025();
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -666,23 +665,6 @@ export default async function CrystalBallPage() {
             })}
         </div>
     );
-}
-
-async function fetchWorlds2025Remaining(): Promise<RemainingBreakdown> {
-    const headersList = headers();
-    const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
-    const fallbackBase = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-    const protocolFromHeaders = headersList.get("x-forwarded-proto");
-    const isLocalHost = host?.includes("localhost") || host?.startsWith("127.") || host?.startsWith("::1");
-    const protocol = protocolFromHeaders ?? (isLocalHost ? "http" : "https");
-    const baseUrl = host ? `${protocol}://${host}` : fallbackBase;
-
-    const response = await fetch(`${baseUrl}/api/worlds/2025/remaining`, { cache: "no-store" });
-    if (!response.ok) {
-        throw new Error(`Failed to fetch Worlds 2025 remaining data (${response.status})`);
-    }
-
-    return (await response.json()) as RemainingBreakdown;
 }
 
 function SummaryStat({

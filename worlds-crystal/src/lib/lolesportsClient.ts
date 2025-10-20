@@ -1,5 +1,51 @@
-const LOLESPORTS_API_BASE = "https://esports-api.lolesports.com/persisted/gw";
+const API_HOST = "https://esports-api.lolesports.com/persisted/gw";
 const DEFAULT_LOCALE = "en-US";
+const API_KEY =
+  process.env.LOLESports_API_KEY ?? process.env.LOLESPORTS_API_KEY ?? undefined;
+
+function assertApiKey() {
+  if (!API_KEY) {
+    throw new Error("Missing LOLESPORTS_API_KEY. Set it in your env.");
+  }
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  retries = 2,
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          "x-api-key": API_KEY!,
+          ...(init.headers ?? {}),
+        },
+      });
+
+      if (response.ok) {
+        return response;
+      }
+
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, 300 * (attempt + 1)),
+    );
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error(String(lastError));
+}
 
 type RawScheduleResponse = {
   data?: {
@@ -37,6 +83,7 @@ export type Match = {
 };
 
 export type LolesportsStageSchedule = {
+  stageId: string;
   matches: Match[];
 };
 
@@ -63,61 +110,60 @@ function toScoreValue(value: number | null | undefined): number {
   return 0;
 }
 
-export async function getStageSchedule(stageId: string): Promise<LolesportsStageSchedule> {
+export async function getStageSchedule(
+  stageId: string,
+): Promise<LolesportsStageSchedule> {
   if (!stageId) {
     throw new Error("Stage ID is required to fetch a LoLEsports schedule");
   }
 
-  const apiKey = process.env.LOLESPORTS_API_KEY;
-  if (!apiKey) {
-    throw new Error("LOLESPORTS_API_KEY is not configured");
+  assertApiKey();
+
+  try {
+    const url = new URL(`${API_HOST}/getSchedule`);
+    url.searchParams.set("hl", DEFAULT_LOCALE);
+    url.searchParams.set("stageId", stageId);
+
+    const response = await fetchWithRetry(
+      url.toString(),
+      { method: "GET", cache: "no-store" },
+      2,
+    );
+
+    const payload = (await response.json()) as RawScheduleResponse;
+    const events = payload.data?.schedule?.events ?? [];
+
+    const matches = events
+      .map((event) => {
+        const match = event.match;
+        if (!match?.id) {
+          return null;
+        }
+
+        const bestOf = match.strategy?.count ?? undefined;
+        if (!VALID_SERIES_LENGTHS.has(bestOf as Match["bestOf"])) {
+          return null;
+        }
+
+        const normalizedBestOf = bestOf as Match["bestOf"];
+        const state = normalizeState(match.state ?? event.state ?? undefined);
+        const scoreA = toScoreValue(match.teams?.[0]?.result?.gameWins ?? null);
+        const scoreB = toScoreValue(match.teams?.[1]?.result?.gameWins ?? null);
+
+        return {
+          id: match.id,
+          stageId,
+          bestOf: normalizedBestOf,
+          state,
+          score: { a: scoreA, b: scoreB },
+          startTime: event.startTime ?? undefined,
+        } satisfies Match;
+      })
+      .filter((match): match is Match => Boolean(match));
+
+    return { stageId, matches };
+  } catch (error) {
+    console.warn("[lolesports] failed to fetch stage schedule", stageId, error);
+    return { stageId, matches: [] };
   }
-
-  const url = new URL(`${LOLESPORTS_API_BASE}/getSchedule`);
-  url.searchParams.set("hl", DEFAULT_LOCALE);
-  url.searchParams.set("stageId", stageId);
-
-  const response = await fetch(url, {
-    headers: {
-      "x-api-key": apiKey,
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch LoLEsports schedule for stage ${stageId}`);
-  }
-
-  const payload = (await response.json()) as RawScheduleResponse;
-  const events = payload.data?.schedule?.events ?? [];
-
-  const matches = events
-    .map((event) => {
-      const match = event.match;
-      if (!match?.id) {
-        return null;
-      }
-
-      const bestOf = match.strategy?.count ?? undefined;
-      if (!VALID_SERIES_LENGTHS.has(bestOf as Match["bestOf"])) {
-        return null;
-      }
-
-      const normalizedBestOf = bestOf as Match["bestOf"];
-      const state = normalizeState(match.state ?? event.state ?? undefined);
-      const scoreA = toScoreValue(match.teams?.[0]?.result?.gameWins ?? null);
-      const scoreB = toScoreValue(match.teams?.[1]?.result?.gameWins ?? null);
-
-      return {
-        id: match.id,
-        stageId,
-        bestOf: normalizedBestOf,
-        state,
-        score: { a: scoreA, b: scoreB },
-        startTime: event.startTime ?? undefined,
-      } satisfies Match;
-    })
-    .filter((match): match is Match => Boolean(match));
-
-  return { matches };
 }

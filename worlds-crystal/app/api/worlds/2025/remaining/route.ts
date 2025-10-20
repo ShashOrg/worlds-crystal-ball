@@ -11,6 +11,6 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (error) {
     console.error("[remaining] error:", error);
-    return NextResponse.json(fallbackRemainingWorlds2025());
+    return NextResponse.json(fallbackRemainingWorlds2025(), { status: 200 });
   }
 }

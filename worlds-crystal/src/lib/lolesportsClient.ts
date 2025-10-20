@@ -1,28 +1,24 @@
 const API_HOST = "https://esports-api.lolesports.com/persisted/gw";
 const DEFAULT_LOCALE = "en-US";
 const API_KEY =
-  process.env.LOLESports_API_KEY ?? process.env.LOLESPORTS_API_KEY ?? undefined;
+  process.env.LOLESPORTS_API_KEY ?? process.env.LOLESports_API_KEY ?? undefined;
 
 function assertApiKey() {
   if (!API_KEY) {
-    throw new Error("Missing LOLESPORTS_API_KEY. Set it in your env.");
+    throw new Error("Missing LOLESPORTS_API_KEY");
   }
 }
 
-async function fetchWithRetry(
-  url: string,
-  init: RequestInit,
-  retries = 2,
-): Promise<Response> {
+async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
+  assertApiKey();
+
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       const response = await fetch(url, {
-        ...init,
         headers: {
           "x-api-key": API_KEY!,
-          ...(init.headers ?? {}),
         },
       });
 
@@ -36,7 +32,7 @@ async function fetchWithRetry(
     }
 
     await new Promise((resolve) =>
-      setTimeout(resolve, 300 * (attempt + 1)),
+      setTimeout(resolve, 250 * (attempt + 1)),
     );
   }
 
@@ -117,18 +113,12 @@ export async function getStageSchedule(
     throw new Error("Stage ID is required to fetch a LoLEsports schedule");
   }
 
-  assertApiKey();
-
   try {
     const url = new URL(`${API_HOST}/getSchedule`);
     url.searchParams.set("hl", DEFAULT_LOCALE);
     url.searchParams.set("stageId", stageId);
 
-    const response = await fetchWithRetry(
-      url.toString(),
-      { method: "GET", cache: "no-store" },
-      2,
-    );
+    const response = await fetchWithRetry(url.toString(), 2);
 
     const payload = (await response.json()) as RawScheduleResponse;
     const events = payload.data?.schedule?.events ?? [];

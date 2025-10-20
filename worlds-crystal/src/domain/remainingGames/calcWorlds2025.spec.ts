@@ -3,12 +3,22 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { computeRemainingGamesWorlds2025 } from "./calcWorlds2025";
 import type { Match } from "@/src/lib/lolesportsClient";
 
+const mockGameCount = vi.fn<(args?: unknown) => Promise<number>>();
+
 const mockGetStageSchedule = vi.fn<
   (stageId: string) => Promise<{ stageId: string; matches: Match[] }>
 >();
 
 vi.mock("@/src/lib/lolesportsClient", () => ({
   getStageSchedule: mockGetStageSchedule,
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    game: {
+      count: mockGameCount,
+    },
+  },
 }));
 
 const SWISS_STAGE_ID = "113475482880934049";
@@ -19,6 +29,8 @@ let nextMatchId = 0;
 describe("computeRemainingGamesWorlds2025", () => {
   beforeEach(() => {
     mockGetStageSchedule.mockReset();
+    mockGameCount.mockReset();
+    mockGameCount.mockResolvedValue(0);
     nextMatchId = 0;
   });
 
@@ -104,6 +116,17 @@ describe("computeRemainingGamesWorlds2025", () => {
     expect(result.total).toEqual({ min: 67, max: 94 });
     expect(result.played).toEqual({ maps: 0, series: 0 });
     expect(result.seriesLeft).toEqual({ total: 40 });
+  });
+
+  it("uses database fallback for played maps when schedule has no results", async () => {
+    mockGetStageSchedule.mockResolvedValueOnce(defaultStageSchedule);
+    mockGameCount.mockResolvedValueOnce(18);
+
+    const result = await computeRemainingGamesWorlds2025();
+
+    expect(mockGameCount).toHaveBeenCalledTimes(1);
+    expect(result.played).toEqual({ maps: 18, series: 0 });
+    expect(result.total).toEqual({ min: 67, max: 94 });
   });
 
   it("clamps over-reported matches so remaining counts never go negative", async () => {

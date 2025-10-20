@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import { WORLDS_2025_TOURNAMENT } from "@/tournaments/worlds2025";
 import { getStageSchedule, type Match } from "@/src/lib/lolesportsClient";
 
@@ -136,10 +137,6 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
   const swissSchedule = await getStageSchedule(SWISS_STAGE_ID);
   const knockoutMatches = await getKnockoutMatches();
 
-  if (swissSchedule.matches.length === 0 && knockoutMatches.length === 0) {
-    return fallbackRemainingWorlds2025();
-  }
-
   const { bo1: swissBo1Matches, bo3: swissBo3Matches } = splitMatchesByLength(
     swissSchedule.matches,
   );
@@ -210,10 +207,14 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
     ...effectiveBo5Completed,
   ];
   const totalCompletedSeries = completedMatches.length;
-  const totalCompletedMaps = completedMatches.reduce(
+  let totalCompletedMaps = completedMatches.reduce(
     (sum, match) => sum + completedMapsForMatch(match),
     0,
   );
+
+  if (totalCompletedSeries === 0 && totalCompletedMaps === 0) {
+    totalCompletedMaps = await countWorlds2025MapsFromDb().catch(() => 0);
+  }
 
   const seriesLeftTotal = bo1Left + bo3SeriesLeft + bo5SeriesLeft;
 
@@ -258,6 +259,29 @@ async function getKnockoutMatches(): Promise<Match[]> {
   const knockoutSchedule = await getStageSchedule(KNOCKOUT_STAGE_ID);
   const { bo5 } = splitMatchesByLength(knockoutSchedule.matches);
   return bo5;
+}
+
+async function countWorlds2025MapsFromDb(): Promise<number> {
+  const seasonStart = new Date(Date.UTC(2025, 0, 1, 0, 0, 0));
+  const seasonEnd = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
+
+  try {
+    return await prisma.game.count({
+      where: {
+        dateUtc: {
+          gte: seasonStart,
+          lt: seasonEnd,
+        },
+        tournament: {
+          contains: "world",
+          mode: "insensitive",
+        },
+      },
+    });
+  } catch (error) {
+    console.warn("[remaining] failed to count Worlds maps from DB", error);
+    throw error;
+  }
 }
 
 function completedMapsForMatch(match: Match): number {

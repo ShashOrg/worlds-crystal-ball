@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
 import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 import { getServerSession } from "next-auth";
@@ -548,6 +549,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
+    const summaryPromise = getCrystalBallSummary(CURRENT_SEASON);
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -594,11 +596,22 @@ export default async function CrystalBallPage() {
         resultsByCategory.get(entry.stat.category)!.push(entry);
     }
 
+    const summary = await summaryPromise;
     const categories = Object.keys(groupedResults);
 
     return (
         <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
+
+            <section className="grid gap-4 sm:grid-cols-3">
+                <SummaryStat label="Games Played" value={summary.totalGames} />
+                <SummaryStat label="Matches Played" value={summary.totalMatches} />
+                <SummaryStat
+                    label="Max Remaining Matches"
+                    value={summary.maxRemainingMatches}
+                    helperText={formatRemainingMatchesHelper(summary)}
+                />
+            </section>
 
             {categories.map((category) => {
                 const items = resultsByCategory.get(category) ?? [];
@@ -649,6 +662,43 @@ export default async function CrystalBallPage() {
                     </section>
                 );
             })}
+        </div>
+    );
+}
+
+function formatRemainingMatchesHelper(summary: CrystalBallSummary): string | undefined {
+    if (summary.totalPossibleMatches === null) {
+        return "Schedule metadata unavailable";
+    }
+
+    const parts: string[] = [];
+    if (summary.totalScheduledMatches !== null) {
+        parts.push(`${summary.totalScheduledMatches.toLocaleString()} scheduled`);
+    }
+    if (summary.totalPotentialMatches !== null && summary.totalPotentialMatches > 0) {
+        parts.push(`${summary.totalPotentialMatches.toLocaleString()} potential`);
+    }
+
+    const breakdown = parts.length ? ` (${parts.join(" + ")})` : "";
+    return `Out of ${summary.totalPossibleMatches.toLocaleString()} possible matches${breakdown}`;
+}
+
+function SummaryStat({
+    label,
+    value,
+    helperText,
+}: {
+    label: string;
+    value: number | null;
+    helperText?: string;
+}) {
+    const displayValue = value !== null ? value.toLocaleString() : "—";
+
+    return (
+        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-sm font-medium text-gray-500">{label}</p>
+            <p className="text-2xl font-semibold text-gray-900">{displayValue}</p>
+            {helperText ? <p className="text-xs text-gray-500">{helperText}</p> : null}
         </div>
     );
 }

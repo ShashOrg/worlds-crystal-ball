@@ -24,6 +24,10 @@ export type RemainingBreakdown = {
     min: number;
     max: number;
   };
+  played: {
+    maps: number;
+    series: number;
+  };
 };
 
 const SWISS_STAGE_ID = WORLDS_2025_TOURNAMENT.stageIds.swiss;
@@ -33,13 +37,18 @@ const SWISS_TOTAL_BO1 = WORLDS_2025_TOURNAMENT.swiss.totalBo1;
 const SWISS_TOTAL_BO3_SERIES = WORLDS_2025_TOURNAMENT.swiss.totalBo3Series;
 const KNOCKOUT_TOTAL_BO5_SERIES = WORLDS_2025_TOURNAMENT.knockouts.totalBo5Series;
 
+const SWISS_BO3_MAX_MAPS_PER_SERIES = 3;
+const KNOCKOUT_BO5_MAX_MAPS_PER_SERIES = 5;
 const WINS_REQUIRED_BY_SERIES: Record<Match["bestOf"], number> = {
   1: 1,
   3: 2,
   5: 3,
 };
-const SWISS_BO3_MAX_MAPS_PER_SERIES = 3;
-const KNOCKOUT_BO5_MAX_MAPS_PER_SERIES = 5;
+const MAX_MAPS_BY_SERIES: Record<Match["bestOf"], number> = {
+  1: 1,
+  3: SWISS_BO3_MAX_MAPS_PER_SERIES,
+  5: KNOCKOUT_BO5_MAX_MAPS_PER_SERIES,
+};
 
 function clampMatches<T>(matches: T[], allowed: number): T[] {
   const normalizedAllowed = Math.max(0, Math.floor(allowed));
@@ -81,16 +90,21 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
   );
 
   const swissBo1States = partitionByState(swissBo1Matches);
-  const completedBo1 = Math.min(swissBo1States.completed.length, SWISS_TOTAL_BO1);
+  const effectiveBo1Completed = clampMatches(
+    swissBo1States.completed,
+    SWISS_TOTAL_BO1,
+  );
+  const completedBo1 = effectiveBo1Completed.length;
   const bo1Left = Math.max(SWISS_TOTAL_BO1 - completedBo1, 0);
   const bo1LiveCount = Math.min(swissBo1States.inProgress.length, bo1Left);
   const bo1UnstartedCount = Math.max(bo1Left - bo1LiveCount, 0);
 
   const swissBo3States = partitionByState(swissBo3Matches);
-  const completedBo3 = Math.min(
-    swissBo3States.completed.length,
+  const effectiveBo3Completed = clampMatches(
+    swissBo3States.completed,
     SWISS_TOTAL_BO3_SERIES,
   );
+  const completedBo3 = effectiveBo3Completed.length;
   const bo3SeriesLeft = Math.max(SWISS_TOTAL_BO3_SERIES - completedBo3, 0);
   const effectiveBo3Live = clampMatches(swissBo3States.inProgress, bo3SeriesLeft);
   const bo3RemainingUnstarted = Math.max(
@@ -113,10 +127,11 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
 
   const knockoutMatches = await getKnockoutMatches();
   const knockoutStates = partitionByState(knockoutMatches);
-  const completedBo5 = Math.min(
-    knockoutStates.completed.length,
+  const effectiveBo5Completed = clampMatches(
+    knockoutStates.completed,
     KNOCKOUT_TOTAL_BO5_SERIES,
   );
+  const completedBo5 = effectiveBo5Completed.length;
   const bo5SeriesLeft = Math.max(KNOCKOUT_TOTAL_BO5_SERIES - completedBo5, 0);
   const effectiveBo5Live = clampMatches(knockoutStates.inProgress, bo5SeriesLeft);
   const bo5RemainingUnstarted = Math.max(
@@ -135,6 +150,24 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
 
   const totalMin = swissMin + knockoutsMin;
   const totalMax = swissMax + knockoutsMax;
+
+  const swissCompletedSeries =
+    effectiveBo1Completed.length + effectiveBo3Completed.length;
+  const swissCompletedMaps =
+    effectiveBo1Completed.length * WINS_REQUIRED_BY_SERIES[1] +
+    effectiveBo3Completed.reduce(
+      (sum, match) => sum + completedMapsForMatch(match),
+      0,
+    );
+
+  const knockoutsCompletedSeries = effectiveBo5Completed.length;
+  const knockoutsCompletedMaps = effectiveBo5Completed.reduce(
+    (sum, match) => sum + completedMapsForMatch(match),
+    0,
+  );
+
+  const totalCompletedSeries = swissCompletedSeries + knockoutsCompletedSeries;
+  const totalCompletedMaps = swissCompletedMaps + knockoutsCompletedMaps;
 
   return {
     swiss: {
@@ -159,6 +192,10 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
       min: totalMin,
       max: totalMax,
     },
+    played: {
+      maps: totalCompletedMaps,
+      series: totalCompletedSeries,
+    },
   };
 }
 
@@ -170,4 +207,16 @@ async function getKnockoutMatches(): Promise<Match[]> {
   const knockoutSchedule = await getStageSchedule(KNOCKOUT_STAGE_ID);
   const { bo5 } = splitMatchesByLength(knockoutSchedule.matches);
   return bo5;
+}
+
+function completedMapsForMatch(match: Match): number {
+  if (match.bestOf === 1) {
+    return WINS_REQUIRED_BY_SERIES[1];
+  }
+
+  const minimumMaps = WINS_REQUIRED_BY_SERIES[match.bestOf];
+  const maximumMaps = MAX_MAPS_BY_SERIES[match.bestOf];
+  const reportedMaps = match.score.a + match.score.b;
+
+  return Math.min(Math.max(reportedMaps, minimumMaps), maximumMaps);
 }

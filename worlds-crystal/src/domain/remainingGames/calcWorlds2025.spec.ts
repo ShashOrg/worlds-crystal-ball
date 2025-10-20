@@ -88,6 +88,7 @@ describe("computeRemainingGamesWorlds2025", () => {
     });
 
     expect(result.total).toEqual({ min: 45, max: 65 });
+    expect(result.played).toEqual({ maps: 20, series: 15 });
     expect(mockGetStageSchedule).toHaveBeenCalledWith(SWISS_STAGE_ID);
   });
 
@@ -101,6 +102,7 @@ describe("computeRemainingGamesWorlds2025", () => {
     expect(result.knockouts.min).toBe(21);
     expect(result.knockouts.max).toBe(35);
     expect(result.total).toEqual({ min: 67, max: 94 });
+    expect(result.played).toEqual({ maps: 0, series: 0 });
   });
 
   it("clamps over-reported matches so remaining counts never go negative", async () => {
@@ -144,6 +146,7 @@ describe("computeRemainingGamesWorlds2025", () => {
     expect(result.knockouts.min).toBe(21);
     expect(result.knockouts.max).toBe(35);
     expect(result.total).toEqual({ min: 21, max: 35 });
+    expect(result.played).toEqual({ maps: 59, series: 33 });
   });
 });
 

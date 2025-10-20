@@ -28,6 +28,9 @@ export type RemainingBreakdown = {
     maps: number;
     series: number;
   };
+  seriesLeft: {
+    total: number;
+  };
 };
 
 const SWISS_STAGE_ID = WORLDS_2025_TOURNAMENT.stageIds.swiss;
@@ -150,24 +153,18 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
 
   const totalMin = swissMin + knockoutsMin;
   const totalMax = swissMax + knockoutsMax;
-
-  const swissCompletedSeries =
-    effectiveBo1Completed.length + effectiveBo3Completed.length;
-  const swissCompletedMaps =
-    effectiveBo1Completed.length * WINS_REQUIRED_BY_SERIES[1] +
-    effectiveBo3Completed.reduce(
-      (sum, match) => sum + completedMapsForMatch(match),
-      0,
-    );
-
-  const knockoutsCompletedSeries = effectiveBo5Completed.length;
-  const knockoutsCompletedMaps = effectiveBo5Completed.reduce(
+  const completedMatches: Match[] = [
+    ...effectiveBo1Completed,
+    ...effectiveBo3Completed,
+    ...effectiveBo5Completed,
+  ];
+  const totalCompletedSeries = completedMatches.length;
+  const totalCompletedMaps = completedMatches.reduce(
     (sum, match) => sum + completedMapsForMatch(match),
     0,
   );
 
-  const totalCompletedSeries = swissCompletedSeries + knockoutsCompletedSeries;
-  const totalCompletedMaps = swissCompletedMaps + knockoutsCompletedMaps;
+  const seriesLeftTotal = bo1Left + bo3SeriesLeft + bo5SeriesLeft;
 
   return {
     swiss: {
@@ -195,6 +192,9 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
     played: {
       maps: totalCompletedMaps,
       series: totalCompletedSeries,
+    },
+    seriesLeft: {
+      total: seriesLeftTotal,
     },
   };
 }

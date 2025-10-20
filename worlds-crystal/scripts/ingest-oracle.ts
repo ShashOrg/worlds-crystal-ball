@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { MetricResult } from "@/lib/metric-results";
 import { prisma } from "@/lib/prisma";
 import { recomputeAndStoreCrystalBallSummary } from "@/lib/crystal-ball-summary";
+import { computeRemainingGamesWorlds2025 } from "@/src/domain/remainingGames/calcWorlds2025";
 
 async function ensureExternalMetricTable() {
     const exists = await prisma.$queryRaw<{exists: boolean}[]>`
@@ -1012,10 +1013,22 @@ async function main() {
     console.log(`Games created: ${created}, updated: ${updated}, player-rows inserted: ${statsInserted}`);
 
     await ensureExternalMetricTable();
-    const summary = await recomputeAndStoreCrystalBallSummary(SEASON);
+    await recomputeAndStoreCrystalBallSummary(SEASON);
+
+    const remaining = await computeRemainingGamesWorlds2025();
+    const swissSeriesLeft =
+        remaining.swiss.details.bo1Left + remaining.swiss.details.bo3SeriesLeft;
+    const koSeriesLeft = remaining.knockouts.details.seriesLeft;
+    const seriesLeft = swissSeriesLeft + koSeriesLeft;
+
     console.log(
-        `[crystal-ball] summary updated: games=${summary.totalGames}, matches=${summary.totalMatches}, maxRemaining=${summary.maxRemainingMatches ?? "n/a"}`,
+        "[crystal-ball] remaining maps (min–max):",
+        remaining.total.min,
+        remaining.total.max,
     );
+    console.log("[crystal-ball] swiss:", remaining.swiss.details);
+    console.log("[crystal-ball] knockout series left:", koSeriesLeft);
+    console.log("[crystal-ball] total series left:", seriesLeft);
 
     const communityData = await loadCommunityData();
     if (communityData) {

@@ -22,17 +22,16 @@ describe("computeRemainingGamesWorlds2025", () => {
     nextMatchId = 0;
   });
 
-  it("accounts for live Swiss series when computing remaining maps", async () => {
+  it("reports played totals and remaining ranges using schedule data", async () => {
     const matches: Match[] = [
-      ...Array.from({ length: 10 }, (_, index) =>
+      ...Array.from({ length: 5 }, (_, index) =>
         createMatch({
           id: `bo1-completed-${index}`,
           bestOf: 1,
           state: "completed",
         }),
       ),
-      createMatch({ id: "bo1-live-1", bestOf: 1, state: "inProgress" }),
-      createMatch({ id: "bo1-live-2", bestOf: 1, state: "inProgress" }),
+      createMatch({ id: "bo1-live", bestOf: 1, state: "inProgress" }),
       ...Array.from({ length: 3 }, (_, index) =>
         createMatch({
           id: `bo1-unstarted-${index}`,
@@ -40,44 +39,44 @@ describe("computeRemainingGamesWorlds2025", () => {
           state: "unstarted",
         }),
       ),
-      ...Array.from({ length: 5 }, (_, index) =>
-        createMatch({
-          id: `bo3-completed-${index}`,
-          bestOf: 3,
-          state: "completed",
-          score: { a: 2, b: 0 },
-        }),
-      ),
       createMatch({
-        id: "bo3-live-1",
+        id: "bo3-completed-1",
+        bestOf: 3,
+        state: "completed",
+        score: { a: 2, b: 1 },
+      }),
+      createMatch({
+        id: "bo3-completed-2",
+        bestOf: 3,
+        state: "completed",
+        score: { a: 2, b: 0 },
+      }),
+      createMatch({
+        id: "bo3-live",
         bestOf: 3,
         state: "inProgress",
         score: { a: 1, b: 0 },
       }),
-      createMatch({
-        id: "bo3-live-2",
-        bestOf: 3,
-        state: "inProgress",
-        score: { a: 1, b: 1 },
-      }),
-      createMatch({
-        id: "bo3-unstarted-1",
-        bestOf: 3,
-        state: "unstarted",
-      }),
+      ...Array.from({ length: 4 }, (_, index) =>
+        createMatch({
+          id: `bo3-unstarted-${index}`,
+          bestOf: 3,
+          state: "unstarted",
+        }),
+      ),
     ];
 
     mockGetStageSchedule.mockResolvedValueOnce({ matches });
 
     const result = await computeRemainingGamesWorlds2025();
 
-    expect(result.swiss.min).toBe(24);
-    expect(result.swiss.max).toBe(30);
+    expect(result.swiss.min).toBe(36);
+    expect(result.swiss.max).toBe(46);
     expect(result.swiss.details).toEqual({
-      bo1Left: 10,
-      bo3SeriesLeft: 8,
-      liveBo1: 2,
-      liveBo3RemainingMaps: 2,
+      bo1Left: 15,
+      bo3SeriesLeft: 11,
+      liveBo1: 1,
+      liveBo3RemainingMaps: 1,
     });
 
     expect(result.knockouts.min).toBe(21);
@@ -87,8 +86,9 @@ describe("computeRemainingGamesWorlds2025", () => {
       liveBo5RemainingMaps: 0,
     });
 
-    expect(result.total).toEqual({ min: 45, max: 65 });
-    expect(result.played).toEqual({ maps: 20, series: 15 });
+    expect(result.total).toEqual({ min: 57, max: 81 });
+    expect(result.played).toEqual({ maps: 10, series: 7 });
+    expect(result.seriesLeft).toEqual({ total: 33 });
     expect(mockGetStageSchedule).toHaveBeenCalledWith(SWISS_STAGE_ID);
   });
 
@@ -103,6 +103,7 @@ describe("computeRemainingGamesWorlds2025", () => {
     expect(result.knockouts.max).toBe(35);
     expect(result.total).toEqual({ min: 67, max: 94 });
     expect(result.played).toEqual({ maps: 0, series: 0 });
+    expect(result.seriesLeft).toEqual({ total: 40 });
   });
 
   it("clamps over-reported matches so remaining counts never go negative", async () => {
@@ -147,6 +148,7 @@ describe("computeRemainingGamesWorlds2025", () => {
     expect(result.knockouts.max).toBe(35);
     expect(result.total).toEqual({ min: 21, max: 35 });
     expect(result.played).toEqual({ maps: 59, series: 33 });
+    expect(result.seriesLeft).toEqual({ total: 7 });
   });
 });
 

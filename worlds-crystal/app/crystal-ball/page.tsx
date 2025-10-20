@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
 import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetricTable";
+import { headers } from "next/headers";
+import type { RemainingBreakdown } from "@/src/domain/remainingGames/calcWorlds2025";
 
 const CURRENT_SEASON = 2025;
 
@@ -549,7 +550,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
-    const summaryPromise = getCrystalBallSummary(CURRENT_SEASON);
+    const remainingPromise = fetchWorlds2025Remaining();
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -596,20 +597,21 @@ export default async function CrystalBallPage() {
         resultsByCategory.get(entry.stat.category)!.push(entry);
     }
 
-    const summary = await summaryPromise;
+    const remaining = await remainingPromise;
     const categories = Object.keys(groupedResults);
+    const mapsRemainingDisplay = `${remaining.total.min.toLocaleString()}–${remaining.total.max.toLocaleString()}`;
 
     return (
         <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
-            <section className="grid gap-4 sm:grid-cols-3">
-                <SummaryStat label="Games Played" value={summary.totalGames} />
-                <SummaryStat label="Matches Played" value={summary.totalMatches} />
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <SummaryStat label="Games (Maps) Played" value={remaining.played.maps} />
+                <SummaryStat label="Matches (Series) Played" value={remaining.played.series} />
+                <SummaryStat label="Games (Maps) Remaining" value={mapsRemainingDisplay} />
                 <SummaryStat
-                    label="Max Remaining Matches"
-                    value={summary.maxRemainingMatches}
-                    helperText={formatRemainingMatchesHelper(summary)}
+                    label="Matches (Series) Remaining"
+                    value={remaining.seriesLeft.total}
                 />
             </section>
 
@@ -666,21 +668,21 @@ export default async function CrystalBallPage() {
     );
 }
 
-function formatRemainingMatchesHelper(summary: CrystalBallSummary): string | undefined {
-    if (summary.totalPossibleMatches === null) {
-        return "Schedule metadata unavailable";
+async function fetchWorlds2025Remaining(): Promise<RemainingBreakdown> {
+    const headersList = headers();
+    const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
+    const fallbackBase = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const protocolFromHeaders = headersList.get("x-forwarded-proto");
+    const isLocalHost = host?.includes("localhost") || host?.startsWith("127.") || host?.startsWith("::1");
+    const protocol = protocolFromHeaders ?? (isLocalHost ? "http" : "https");
+    const baseUrl = host ? `${protocol}://${host}` : fallbackBase;
+
+    const response = await fetch(`${baseUrl}/api/worlds/2025/remaining`, { cache: "no-store" });
+    if (!response.ok) {
+        throw new Error(`Failed to fetch Worlds 2025 remaining data (${response.status})`);
     }
 
-    const parts: string[] = [];
-    if (summary.totalScheduledMatches !== null) {
-        parts.push(`${summary.totalScheduledMatches.toLocaleString()} scheduled`);
-    }
-    if (summary.totalPotentialMatches !== null && summary.totalPotentialMatches > 0) {
-        parts.push(`${summary.totalPotentialMatches.toLocaleString()} potential`);
-    }
-
-    const breakdown = parts.length ? ` (${parts.join(" + ")})` : "";
-    return `Out of ${summary.totalPossibleMatches.toLocaleString()} possible matches${breakdown}`;
+    return (await response.json()) as RemainingBreakdown;
 }
 
 function SummaryStat({
@@ -689,10 +691,15 @@ function SummaryStat({
     helperText,
 }: {
     label: string;
-    value: number | null;
+    value: number | string | null;
     helperText?: string;
 }) {
-    const displayValue = value !== null ? value.toLocaleString() : "—";
+    let displayValue = "—";
+    if (typeof value === "number") {
+        displayValue = value.toLocaleString();
+    } else if (typeof value === "string") {
+        displayValue = value;
+    }
 
     return (
         <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">

@@ -5,7 +5,13 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { isStatisticTableReady, isUserPickSelectionTableReady } from "@/lib/prisma-helpers";
 import { STATISTICS } from "@/lib/statistics";
-import type { Prisma } from "@prisma/client";
+type StatisticConstraintsInput = Parameters<
+    (typeof prisma.statistic)["upsert"]
+>[0]["update"]["constraints"];
+
+type UserPickSelectionWhereUniqueInput = Parameters<
+    (typeof prisma.userPickSelection)["delete"]
+>[0]["where"];
 
 type SelectionData = {
     championId: number | null;
@@ -157,6 +163,11 @@ export async function POST(req: Request) {
     }
 
     try {
+        const toConstraintsInput = (
+            value: unknown
+        ): StatisticConstraintsInput =>
+            value == null ? undefined : (value as Exclude<StatisticConstraintsInput, undefined>);
+
         await prisma.$transaction(
             STATISTICS.map((stat) =>
                 statisticDelegate.upsert({
@@ -167,7 +178,7 @@ export async function POST(req: Request) {
                         entityType: stat.entity_type,
                         metricId: stat.metric_id,
                         points: stat.points,
-                        constraints: stat.constraints ?? undefined,
+                        constraints: toConstraintsInput(stat.constraints),
                     },
                     create: {
                         key: stat.key,
@@ -176,7 +187,7 @@ export async function POST(req: Request) {
                         entityType: stat.entity_type,
                         metricId: stat.metric_id,
                         points: stat.points,
-                        constraints: stat.constraints ?? undefined,
+                        constraints: toConstraintsInput(stat.constraints),
                     },
                 })
             )
@@ -196,7 +207,7 @@ export async function POST(req: Request) {
     for (const stat of STATISTICS) {
         const raw = form.get(stat.key);
         const parsed = parseSelectionValue(stat.key, raw);
-        const where: Prisma.UserPickSelectionWhereUniqueInput = {
+        const where: UserPickSelectionWhereUniqueInput = {
             user_pick_statistic_unique: {
                 userPickId: userPick.id,
                 statisticKey: stat.key,

@@ -1,27 +1,27 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "./providers";
-import AuthButton from "@/app/AuthButton"; // make sure this file has "use client" at the top
+
+import Header from "@/components/Header";
+import Providers from "./providers";
+
+export const metadata: Metadata = {
+  title: "Worlds Crystal Ball",
+  description: "Predictions, picks, and insights for Worlds.",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#111827" },
+  ],
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-    return (
-        <html lang="en">
-        <body className="min-h-screen bg-white text-gray-900">
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-bg text-text antialiased">
         <Providers>
-            <header className="border-b">
-                <nav className="mx-auto flex w-full max-w-[95rem] items-center justify-between p-4 text-sm">
-                    <div className="flex gap-6">
-                        <Link href="/" className="font-semibold">Worlds Crystal Ball</Link>
-                        <Link href="/crystal-ball" className="hover:underline">Crystal Ball</Link>
-                        <Link href="/admin/import" className="hover:underline">Admin Import</Link>
-                        <Link href="/picks" className="hover:underline">My Picks</Link>
-                    </div>
-                    <AuthButton />
-                </nav>
-            </header>
-            <main className="mx-auto w-full max-w-[95rem] p-6">{children}</main>
+          <Header />
+          <main className="mx-auto w-full max-w-[95rem] p-6">{children}</main>
         </Providers>
-        </body>
-        </html>
-    );
+      </body>
+    </html>
+  );
 }

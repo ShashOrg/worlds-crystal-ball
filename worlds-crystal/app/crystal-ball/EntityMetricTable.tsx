@@ -206,9 +206,9 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
     };
     return (
         <div className="space-y-3">
-            <table className="w-full text-sm border">
+            <table className="w-full text-sm border-base">
                 <thead>
-                    <tr className="bg-gray-100">
+                    <tr className="bg-card">
                         <th className="p-2 text-left">{columns.name}</th>
                         <th className="p-2 text-right">{columns.value}</th>
                         {showDetailColumn ? (
@@ -219,12 +219,27 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                 <tbody>
                     {visibleEntries.map((entry) => {
                         const isHighlighted = highlightId === entry.id;
-                        const rowClass = `border-t${isHighlighted ? " bg-blue-50" : ""}`;
-                        const nameClass = `p-2${isHighlighted ? " font-semibold text-blue-700" : ""}`;
-                        const valueClass = `p-2 text-right${isHighlighted ? " font-semibold text-blue-700" : ""}`;
+                        const rowClass = [
+                            "border-t border-border",
+                            isHighlighted ? "bg-accent/10" : "",
+                        ]
+                            .filter(Boolean)
+                            .join(" ");
+                        const nameClass = [
+                            "p-2",
+                            isHighlighted ? "font-semibold text-accent" : "",
+                        ]
+                            .filter(Boolean)
+                            .join(" ");
+                        const valueClass = [
+                            "p-2 text-right",
+                            isHighlighted ? "font-semibold text-accent" : "",
+                        ]
+                            .filter(Boolean)
+                            .join(" ");
                         const detailClass = isHighlighted
-                            ? "p-2 text-right text-blue-600"
-                            : "p-2 text-right text-gray-500";
+                            ? "p-2 text-right text-accent"
+                            : "p-2 text-right text-muted";
 
                         return (
                             <tr key={entry.id} className={rowClass}>
@@ -232,7 +247,7 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                                     <div className="flex items-center justify-between gap-2">
                                         <span>{entry.name}</span>
                                         {isHighlighted ? (
-                                            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                                            <span className="text-xs font-semibold uppercase tracking-wide text-accent">
                                                 Your pick
                                             </span>
                                         ) : null}
@@ -246,20 +261,20 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                         );
                     })}
                     {showHighlightRow && selection ? (
-                        <tr className="border-t bg-blue-50">
-                            <td className="p-2 font-semibold text-blue-700">
+                        <tr className="border-t border-border bg-accent/10">
+                            <td className="p-2 font-semibold text-accent">
                                 <div className="flex flex-col">
                                     <span>Your pick: {selection.label}</span>
                                     {highlightRowMessage ? (
-                                        <span className="text-xs font-normal text-blue-600">{highlightRowMessage}</span>
+                                        <span className="text-xs font-normal text-accent">{highlightRowMessage}</span>
                                     ) : null}
                                 </div>
                             </td>
-                            <td className="p-2 text-right font-semibold text-blue-700">
+                            <td className="p-2 text-right font-semibold text-accent">
                                 {selection.entry ? getValueDisplay(selection.entry) : "—"}
                             </td>
                             {showDetailColumn ? (
-                                <td className="p-2 text-right text-blue-600">
+                                <td className="p-2 text-right text-accent">
                                     {selection.entry ? selection.entry.detail ?? "—" : "0"}
                                 </td>
                             ) : null}
@@ -271,7 +286,7 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                 <div className="flex justify-end">
                     <button
                         type="button"
-                        className="text-sm font-medium text-blue-700 hover:text-blue-800"
+                        className="text-sm font-medium text-accent transition-opacity hover:opacity-80"
                         onClick={() => setShowAll((current) => !current)}
                     >
                         {showAll ? "Show less" : "Show more"}

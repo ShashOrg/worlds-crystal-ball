@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isStatisticTableReady, isUserPickSelectionTableReady } from "@/lib/prisma-helpers";
 import { groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
-import type { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -37,7 +36,7 @@ export default async function PicksPage() {
     ]);
 
     const userPickSelectionDelegate = (prisma as unknown as {
-        userPickSelection?: Prisma.UserPickSelectionDelegate<false>;
+        userPickSelection?: typeof prisma.userPickSelection;
     }).userPickSelection;
 
     const selections = existing && userPickSelectionDelegate && selectionTableReady

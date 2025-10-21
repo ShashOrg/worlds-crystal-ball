@@ -10,6 +10,15 @@ interface ChampionData {
 
 const prisma = new PrismaClient();
 
+type StatisticConstraintsInput = Parameters<
+    (typeof prisma.statistic)["upsert"]
+>[0]["update"]["constraints"];
+
+const toConstraintsInput = (
+    value: unknown
+): StatisticConstraintsInput =>
+    value == null ? undefined : (value as Exclude<StatisticConstraintsInput, undefined>);
+
 async function seedChampions() {
     const ddVersion = "14.20.1"; // example; use the Worlds patch version you want
     const url = `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/data/en_US/champion.json`;
@@ -44,7 +53,7 @@ async function seedStatistics() {
                 entityType: stat.entity_type,
                 metricId: stat.metric_id,
                 points: stat.points,
-                constraints: stat.constraints ?? null,
+                constraints: toConstraintsInput(stat.constraints),
             },
             create: {
                 key: stat.key,
@@ -53,7 +62,7 @@ async function seedStatistics() {
                 entityType: stat.entity_type,
                 metricId: stat.metric_id,
                 points: stat.points,
-                constraints: stat.constraints ?? null,
+                constraints: toConstraintsInput(stat.constraints),
             },
         });
     }

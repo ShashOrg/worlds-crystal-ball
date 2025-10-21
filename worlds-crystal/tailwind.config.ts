@@ -1,7 +1,13 @@
 import type { Config } from "tailwindcss";
 
-const config: Config = {
+const config = {
   darkMode: "class",
+  content: [
+    "./app/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./lib/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+  ],
   theme: {
     extend: {
       boxShadow: {
@@ -13,6 +19,7 @@ const config: Config = {
       },
     },
   },
-};
+  plugins: [],
+} satisfies Config;
 
 export default config;

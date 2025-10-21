@@ -41,7 +41,7 @@
 html, body { height: 100%; }
 
 body {
-  @apply bg-bg text-text antialiased;
+  @apply text-text antialiased;
 }
 
 /* Common surfaces */
@@ -51,3 +51,7 @@ body {
 
 /* Optional scrollbar tweak */
 * { scrollbar-color: rgb(var(--color-border)) transparent; }
+
+.stat-table {
+  border-radius: 0.75rem;
+}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MetricEntityEntry } from "@/lib/metric-results";
+import { cn } from "@/lib/utils";
 
 const STANDARD_UNIT_SUFFIXES = [
     "picks",
@@ -206,40 +207,34 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
     };
     return (
         <div className="space-y-3">
-            <table className="w-full text-sm border-base">
-                <thead>
-                    <tr className="bg-card">
-                        <th className="p-2 text-left">{columns.name}</th>
-                        <th className="p-2 text-right">{columns.value}</th>
+            <table
+                className="stat-table w-full overflow-hidden rounded-xl border border-neutral-200 text-sm dark:border-neutral-700"
+            >
+                <thead className="border-b border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+                    <tr>
+                        <th className="px-3 py-2.5 text-left font-medium">{columns.name}</th>
+                        <th className="px-3 py-2.5 text-right font-medium">{columns.value}</th>
                         {showDetailColumn ? (
-                            <th className="p-2 text-right">{columns.detail}</th>
+                            <th className="px-3 py-2.5 text-right font-medium">{columns.detail}</th>
                         ) : null}
                     </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-neutral-200 text-neutral-800 dark:divide-neutral-800 dark:text-neutral-100">
                     {visibleEntries.map((entry) => {
                         const isHighlighted = highlightId === entry.id;
-                        const rowClass = [
-                            "border-t border-border",
-                            isHighlighted ? "tr-your-pick" : "",
-                        ]
-                            .filter(Boolean)
-                            .join(" ");
-                        const nameClass = [
-                            "p-2",
-                            isHighlighted ? "font-semibold" : "",
-                        ]
-                            .filter(Boolean)
-                            .join(" ");
-                        const valueClass = [
-                            "p-2 text-right",
-                            isHighlighted ? "font-semibold" : "",
-                        ]
-                            .filter(Boolean)
-                            .join(" ");
-                        const detailClass = isHighlighted
-                            ? "p-2 text-right font-semibold"
-                            : "p-2 text-right text-muted";
+                        const rowClass = cn(isHighlighted && "tr-your-pick");
+                        const nameClass = cn(
+                            "px-3 py-2.5",
+                            isHighlighted && "font-semibold text-neutral-900 dark:text-neutral-50",
+                        );
+                        const valueClass = cn(
+                            "px-3 py-2.5 text-right",
+                            isHighlighted && "font-semibold text-neutral-900 dark:text-neutral-50",
+                        );
+                        const detailClass = cn(
+                            "px-3 py-2.5 text-right text-neutral-500 dark:text-neutral-400",
+                            isHighlighted && "font-semibold text-neutral-900 dark:text-neutral-50",
+                        );
 
                         return (
                             <tr key={entry.id} className={rowClass}>
@@ -259,8 +254,8 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                         );
                     })}
                     {showHighlightRow && selection ? (
-                        <tr className="border-t border-border tr-your-pick">
-                            <td className="p-2">
+                        <tr className="tr-your-pick">
+                            <td className="px-3 py-2.5">
                                 <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-2">
                                         <span className="font-semibold">{selection.label}</span>
@@ -271,11 +266,11 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                                     ) : null}
                                 </div>
                             </td>
-                            <td className="p-2 text-right font-semibold">
+                            <td className="px-3 py-2.5 text-right font-semibold">
                                 {selection.entry ? getValueDisplay(selection.entry) : "—"}
                             </td>
                             {showDetailColumn ? (
-                                <td className="p-2 text-right font-semibold">
+                                <td className="px-3 py-2.5 text-right font-semibold">
                                     {selection.entry ? selection.entry.detail ?? "—" : "0"}
                                 </td>
                             ) : null}

@@ -605,19 +605,21 @@ export default async function CrystalBallPage() {
         <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
-            <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                <StatCard title="Games Played" subtitle="Live count">
-                    <p className="text-4xl font-bold text-neutral-800 dark:text-neutral-100">
+            <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <StatCard title="Games Played">
+                    <p className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         {summary.totalGames !== null ? summary.totalGames.toLocaleString() : "—"}
                     </p>
+                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Live count</p>
                 </StatCard>
-                <StatCard title="Matches Played" subtitle="Live count">
-                    <p className="text-4xl font-bold text-neutral-800 dark:text-neutral-100">
+                <StatCard title="Matches Played">
+                    <p className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         {summary.totalMatches !== null ? summary.totalMatches.toLocaleString() : "—"}
                     </p>
+                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Live count</p>
                 </StatCard>
                 <StatCard title="Max Remaining Matches" subtitle={formatRemainingMatchesHelper(summary)}>
-                    <p className="text-4xl font-bold text-neutral-800 dark:text-neutral-100">
+                    <p className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         {summary.maxRemainingMatches !== null
                             ? summary.maxRemainingMatches.toLocaleString()
                             : "—"}
@@ -649,7 +651,7 @@ export default async function CrystalBallPage() {
                                         className={cn(
                                             "group",
                                             selectionFailed &&
-                                                "border-accent bg-accent/10 hover:ring-accent/30 dark:border-accent",
+                                                "bg-accent/10 ring-2 ring-accent/50 hover:ring-accent/40 dark:ring-accent/40",
                                         )}
                                         data-selection-status={selectionFailed ? "failed" : undefined}
                                     >

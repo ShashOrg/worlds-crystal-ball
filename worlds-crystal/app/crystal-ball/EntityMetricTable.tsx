@@ -221,24 +221,24 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                         const isHighlighted = highlightId === entry.id;
                         const rowClass = [
                             "border-t border-border",
-                            isHighlighted ? "bg-accent/10" : "",
+                            isHighlighted ? "bg-highlight" : "",
                         ]
                             .filter(Boolean)
                             .join(" ");
                         const nameClass = [
                             "p-2",
-                            isHighlighted ? "font-semibold text-accent" : "",
+                            isHighlighted ? "font-semibold text-highlight-foreground" : "",
                         ]
                             .filter(Boolean)
                             .join(" ");
                         const valueClass = [
                             "p-2 text-right",
-                            isHighlighted ? "font-semibold text-accent" : "",
+                            isHighlighted ? "font-semibold text-highlight-foreground" : "",
                         ]
                             .filter(Boolean)
                             .join(" ");
                         const detailClass = isHighlighted
-                            ? "p-2 text-right text-accent"
+                            ? "p-2 text-right text-highlight-foreground"
                             : "p-2 text-right text-muted";
 
                         return (
@@ -247,7 +247,7 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                                     <div className="flex items-center justify-between gap-2">
                                         <span>{entry.name}</span>
                                         {isHighlighted ? (
-                                            <span className="text-xs font-semibold uppercase tracking-wide text-accent">
+                                            <span className="text-xs font-semibold uppercase tracking-wide text-highlight-foreground">
                                                 Your pick
                                             </span>
                                         ) : null}
@@ -261,20 +261,20 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                         );
                     })}
                     {showHighlightRow && selection ? (
-                        <tr className="border-t border-border bg-accent/10">
-                            <td className="p-2 font-semibold text-accent">
+                        <tr className="border-t border-border bg-highlight">
+                            <td className="p-2 font-semibold text-highlight-foreground">
                                 <div className="flex flex-col">
                                     <span>Your pick: {selection.label}</span>
                                     {highlightRowMessage ? (
-                                        <span className="text-xs font-normal text-accent">{highlightRowMessage}</span>
+                                        <span className="text-xs font-normal text-highlight-foreground">{highlightRowMessage}</span>
                                     ) : null}
                                 </div>
                             </td>
-                            <td className="p-2 text-right font-semibold text-accent">
+                            <td className="p-2 text-right font-semibold text-highlight-foreground">
                                 {selection.entry ? getValueDisplay(selection.entry) : "—"}
                             </td>
                             {showDetailColumn ? (
-                                <td className="p-2 text-right text-accent">
+                                <td className="p-2 text-right text-highlight-foreground">
                                     {selection.entry ? selection.entry.detail ?? "—" : "0"}
                                 </td>
                             ) : null}

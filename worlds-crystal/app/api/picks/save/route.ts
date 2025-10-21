@@ -92,10 +92,8 @@ export async function POST(req: Request) {
         },
     });
 
-    const { statistic: statisticDelegate, userPickSelection: userPickSelectionDelegate } = prisma as unknown as {
-        statistic?: Prisma.StatisticDelegate<false>;
-        userPickSelection?: Prisma.UserPickSelectionDelegate<false>;
-    };
+    const statisticDelegate = prisma.statistic;
+    const userPickSelectionDelegate = prisma.userPickSelection;
 
     if (!statisticDelegate) {
         console.error(

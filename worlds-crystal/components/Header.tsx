@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import AuthButton from "@/app/AuthButton";
-import { ThemeToggle } from "./ThemeToggle";
+import ThemeToggleButton from "@/components/ThemeToggleButton";
+import SignInWithGitHubButton from "@/components/auth/SignInWithGitHubButton";
 
 export default function Header() {
   return (
@@ -22,8 +22,8 @@ export default function Header() {
           </Link>
         </div>
         <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <AuthButton />
+          <ThemeToggleButton />
+          <SignInWithGitHubButton />
         </div>
       </nav>
     </header>

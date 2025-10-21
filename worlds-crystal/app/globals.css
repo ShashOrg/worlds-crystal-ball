@@ -2,6 +2,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Improve focus visibility on dark surfaces */
+:root { --tw-ring-offset-color: #fff; }
+.dark { --tw-ring-offset-color: #09090b; }
+
 /* === THEME TOKENS (generate utilities like bg-bg, text-text, border-border) === */
 @theme {
   /* Light tokens */

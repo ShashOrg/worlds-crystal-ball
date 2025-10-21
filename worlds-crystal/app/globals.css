@@ -1,45 +1,39 @@
+/* Tailwind v4 base import */
 @import "tailwindcss";
 @import "tw-animate-css";
 
-:root {
-  --bg: 250 250 250;
-  --card: 255 255 255;
-  --text: 15 18 25;
-  --muted: 100 116 139;
-  --accent: 59 130 246;
-  --border: 226 232 240;
+/* === THEME TOKENS (generate utilities like bg-bg, text-text, border-border) === */
+@theme {
+  /* Light tokens */
+  --color-bg:    250 250 250;   /* #FAFAFA */
+  --color-card:  255 255 255;   /* #FFFFFF */
+  --color-text:  15 18 25;      /* near-black */
+  --color-muted: 100 116 139;   /* slate-500 */
+  --color-accent: 59 130 246;   /* blue-500 */
+  --color-border: 226 232 240;  /* slate-200 */
 }
 
-.dark {
-  --bg: 17 24 39;
-  --card: 24 33 54;
-  --text: 226 232 240;
-  --muted: 148 163 184;
-  --accent: 96 165 250;
-  --border: 51 65 85;
+/* Dark overrides: change the same tokens under .dark */
+:root.dark {
+  --color-bg:    17 24 39;      /* gray-900 */
+  --color-card:  24 33 54;      /* slate-800-ish */
+  --color-text:  226 232 240;   /* slate-200 */
+  --color-muted: 148 163 184;   /* slate-400 */
+  --color-accent: 96 165 250;   /* blue-400 */
+  --color-border: 51 65 85;     /* slate-700 */
 }
 
-html,
-body {
-  height: 100%;
-}
+/* === Base element styles (safe to use utilities now that @theme is defined) === */
+html, body { height: 100%; }
 
 body {
   @apply bg-bg text-text antialiased;
 }
 
-.card {
-  @apply bg-card text-text border border-border rounded-xl;
-}
+/* Common surfaces */
+.card { @apply bg-card text-text border border-border rounded-xl; }
+.muted { @apply text-muted; }
+.border-base { @apply border border-border; }
 
-.muted {
-  @apply text-muted;
-}
-
-.border-base {
-  @apply border border-border;
-}
-
-* {
-  scrollbar-color: rgb(var(--border)) transparent;
-}
+/* Optional scrollbar tweak */
+* { scrollbar-color: rgb(var(--color-border)) transparent; }

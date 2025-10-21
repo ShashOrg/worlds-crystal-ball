@@ -1,7 +1,9 @@
+import StatCard from "@/components/ui/StatCard";
 import { prisma } from "@/lib/prisma";
 import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
 import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
+import { cn } from "@/lib/utils";
 import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -603,14 +605,24 @@ export default async function CrystalBallPage() {
         <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
-            <section className="grid gap-4 sm:grid-cols-3">
-                <SummaryStat label="Games Played" value={summary.totalGames} />
-                <SummaryStat label="Matches Played" value={summary.totalMatches} />
-                <SummaryStat
-                    label="Max Remaining Matches"
-                    value={summary.maxRemainingMatches}
-                    helperText={formatRemainingMatchesHelper(summary)}
-                />
+            <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <StatCard title="Games Played" subtitle="Live count">
+                    <p className="text-4xl font-bold text-neutral-800 dark:text-neutral-100">
+                        {summary.totalGames !== null ? summary.totalGames.toLocaleString() : "—"}
+                    </p>
+                </StatCard>
+                <StatCard title="Matches Played" subtitle="Live count">
+                    <p className="text-4xl font-bold text-neutral-800 dark:text-neutral-100">
+                        {summary.totalMatches !== null ? summary.totalMatches.toLocaleString() : "—"}
+                    </p>
+                </StatCard>
+                <StatCard title="Max Remaining Matches" subtitle={formatRemainingMatchesHelper(summary)}>
+                    <p className="text-4xl font-bold text-neutral-800 dark:text-neutral-100">
+                        {summary.maxRemainingMatches !== null
+                            ? summary.maxRemainingMatches.toLocaleString()
+                            : "—"}
+                    </p>
+                </StatCard>
             </section>
 
             {categories.map((category) => {
@@ -619,46 +631,39 @@ export default async function CrystalBallPage() {
                     <section key={category} className="space-y-6">
                         <div>
                             <h2 className="text-2xl font-semibold">{category}</h2>
-                            <p className="text-sm text-muted">Live results for {category.toLowerCase()} questions.</p>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                                Live results for {category.toLowerCase()} questions.
+                            </p>
                         </div>
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+                        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                             {items.map(({ stat, result }) => {
                                 const selection = userSelections.get(stat.key);
                                 const selectionFailed = selection
                                     ? isSelectionFailed(stat, selection, result)
                                     : false;
-                                const articleClassName = [
-                                    "group flex h-full flex-col rounded-md border-base bg-card transition-colors",
-                                    selectionFailed ? "border-accent bg-accent/10" : "",
-                                ]
-                                    .filter(Boolean)
-                                    .join(" ");
-                                const headerClassName = [
-                                    "border-b border-border px-4 py-3 transition-colors",
-                                    selectionFailed ? "bg-accent/10" : "bg-card",
-                                ]
-                                    .filter(Boolean)
-                                    .join(" ");
-
                                 return (
-                                    <article
+                                    <StatCard
                                         key={stat.key}
-                                        className={articleClassName}
+                                        title={stat.question}
+                                        subtitle={`Worth ${stat.points} points`}
+                                        className={cn(
+                                            "group",
+                                            selectionFailed &&
+                                                "border-accent bg-accent/10 hover:ring-accent/30 dark:border-accent",
+                                        )}
                                         data-selection-status={selectionFailed ? "failed" : undefined}
                                     >
-                                        <header className={headerClassName}>
-                                            <h3 className="font-semibold">{stat.question}</h3>
-                                            <p className="text-xs text-muted">Worth {stat.points} points</p>
-                                        </header>
-                                        <div className="p-4 flex-1">
-                                            <MetricResultDisplay
-                                                stat={stat}
-                                                result={result}
-                                                selection={selection}
-                                                isSelectionFailed={selectionFailed}
-                                            />
+                                        <div className="flex h-full flex-col">
+                                            <div className="flex-1">
+                                                <MetricResultDisplay
+                                                    stat={stat}
+                                                    result={result}
+                                                    selection={selection}
+                                                    isSelectionFailed={selectionFailed}
+                                                />
+                                            </div>
                                         </div>
-                                    </article>
+                                    </StatCard>
                                 );
                             })}
                         </div>
@@ -684,26 +689,6 @@ function formatRemainingMatchesHelper(summary: CrystalBallSummary): string | und
 
     const breakdown = parts.length ? ` (${parts.join(" + ")})` : "";
     return `Out of ${summary.totalPossibleMatches.toLocaleString()} possible matches${breakdown}`;
-}
-
-function SummaryStat({
-    label,
-    value,
-    helperText,
-}: {
-    label: string;
-    value: number | null;
-    helperText?: string;
-}) {
-    const displayValue = value !== null ? value.toLocaleString() : "—";
-
-    return (
-        <div className="card px-4 py-3 shadow-sm">
-            <p className="text-sm font-medium text-muted">{label}</p>
-            <p className="text-2xl font-semibold text-text">{displayValue}</p>
-            {helperText ? <p className="text-xs text-muted">{helperText}</p> : null}
-        </div>
-    );
 }
 
 function getEntityTableColumns(stat: StatisticDefinition): EntityMetricTableColumns {

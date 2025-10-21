@@ -619,7 +619,7 @@ export default async function CrystalBallPage() {
                     <section key={category} className="space-y-6">
                         <div>
                             <h2 className="text-2xl font-semibold">{category}</h2>
-                            <p className="text-sm text-gray-600">Live results for {category.toLowerCase()} questions.</p>
+                            <p className="text-sm text-muted">Live results for {category.toLowerCase()} questions.</p>
                         </div>
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                             {items.map(({ stat, result }) => {
@@ -628,14 +628,17 @@ export default async function CrystalBallPage() {
                                     ? isSelectionFailed(stat, selection, result)
                                     : false;
                                 const articleClassName = [
-                                    "border rounded-md flex flex-col h-full",
-                                    selectionFailed ? "border-red-300 bg-red-50/70" : "",
+                                    "group flex h-full flex-col rounded-md border-base bg-card transition-colors",
+                                    selectionFailed ? "border-accent bg-accent/10" : "",
                                 ]
                                     .filter(Boolean)
                                     .join(" ");
-                                const headerClassName = selectionFailed
-                                    ? "border-b px-4 py-3 bg-red-50"
-                                    : "border-b px-4 py-3 bg-gray-50";
+                                const headerClassName = [
+                                    "border-b border-border px-4 py-3 transition-colors",
+                                    selectionFailed ? "bg-accent/10" : "bg-card",
+                                ]
+                                    .filter(Boolean)
+                                    .join(" ");
 
                                 return (
                                     <article
@@ -645,7 +648,7 @@ export default async function CrystalBallPage() {
                                     >
                                         <header className={headerClassName}>
                                             <h3 className="font-semibold">{stat.question}</h3>
-                                            <p className="text-xs text-gray-500">Worth {stat.points} points</p>
+                                            <p className="text-xs text-muted">Worth {stat.points} points</p>
                                         </header>
                                         <div className="p-4 flex-1">
                                             <MetricResultDisplay
@@ -695,10 +698,10 @@ function SummaryStat({
     const displayValue = value !== null ? value.toLocaleString() : "—";
 
     return (
-        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">{label}</p>
-            <p className="text-2xl font-semibold text-gray-900">{displayValue}</p>
-            {helperText ? <p className="text-xs text-gray-500">{helperText}</p> : null}
+        <div className="card px-4 py-3 shadow-sm">
+            <p className="text-sm font-medium text-muted">{label}</p>
+            <p className="text-2xl font-semibold text-text">{displayValue}</p>
+            {helperText ? <p className="text-xs text-muted">{helperText}</p> : null}
         </div>
     );
 }
@@ -766,7 +769,7 @@ function MetricResultDisplay({
     isSelectionFailed: boolean;
 }) {
     const failureNotice = isSelectionFailed ? (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+        <p className="rounded-md border border-accent bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
             Your pick can no longer hit.
         </p>
     ) : null;
@@ -776,9 +779,9 @@ function MetricResultDisplay({
             return (
                 <div className="space-y-2">
                     {failureNotice}
-                    <p className="text-sm text-gray-500">No data yet.</p>
+                    <p className="text-sm text-muted">No data yet.</p>
                     {selection ? (
-                        <p className="text-sm text-blue-700">
+                        <p className="text-sm text-accent">
                             Your pick: <span className="font-semibold">{selection.label}</span>
                         </p>
                     ) : null}
@@ -807,7 +810,7 @@ function MetricResultDisplay({
                     {result.unit ? ` ${result.unit}` : ""}
                 </p>
                 {selection ? (
-                    <p className="text-sm text-blue-700">
+                    <p className="text-sm text-accent">
                         Your pick: <span className="font-semibold">{selection.label}</span>
                     </p>
                 ) : null}
@@ -823,7 +826,7 @@ function MetricResultDisplay({
                     {result.value === null ? "No data yet" : result.value ? "Yes" : "No"}
                 </p>
                 {selection ? (
-                    <p className="text-sm text-blue-700">
+                    <p className="text-sm text-accent">
                         Your pick: <span className="font-semibold">{selection.label}</span>
                     </p>
                 ) : null}
@@ -834,9 +837,9 @@ function MetricResultDisplay({
     return (
         <div className="space-y-2">
             {failureNotice}
-            <p className="text-sm text-gray-500">{result.message ?? "This statistic is not available yet."}</p>
+            <p className="text-sm text-muted">{result.message ?? "This statistic is not available yet."}</p>
             {selection ? (
-                <p className="text-sm text-blue-700">
+                <p className="text-sm text-accent">
                     Your pick: <span className="font-semibold">{selection.label}</span>
                 </p>
             ) : null}

@@ -167,7 +167,7 @@ export async function POST(req: Request) {
                         entityType: stat.entity_type,
                         metricId: stat.metric_id,
                         points: stat.points,
-                        constraints: stat.constraints ?? null,
+                        constraints: stat.constraints ?? undefined,
                     },
                     create: {
                         key: stat.key,
@@ -176,7 +176,7 @@ export async function POST(req: Request) {
                         entityType: stat.entity_type,
                         metricId: stat.metric_id,
                         points: stat.points,
-                        constraints: stat.constraints ?? null,
+                        constraints: stat.constraints ?? undefined,
                     },
                 })
             )

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useSession, signIn, signOut } from "next-auth/react";
 
 export default function AuthButton() {
@@ -21,10 +22,12 @@ export default function AuthButton() {
     return (
         <div className="flex items-center gap-2">
             {session.user?.image && (
-                <img
+                <Image
                     src={session.user.image}
                     alt={session.user.name ?? "User"}
-                    className="w-6 h-6 rounded-full"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 rounded-full"
                 />
             )}
             <span className="text-sm">{session.user?.name ?? "User"}</span>

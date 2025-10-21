@@ -51,3 +51,12 @@ body {
 
 /* Optional scrollbar tweak */
 * { scrollbar-color: rgb(var(--color-border)) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hover\:-translate-y-\[2px\] {
+    transform: none !important;
+  }
+  .transition-all {
+    transition: none !important;
+  }
+}

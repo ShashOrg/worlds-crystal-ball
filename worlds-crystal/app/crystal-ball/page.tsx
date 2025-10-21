@@ -1,3 +1,5 @@
+import * as React from "react";
+
 import { prisma } from "@/lib/prisma";
 import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
@@ -5,6 +7,7 @@ import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefi
 import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import QuestionGrid from "@/components/QuestionGrid";
 import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetricTable";
 
 const CURRENT_SEASON = 2025;
@@ -600,7 +603,7 @@ export default async function CrystalBallPage() {
     const categories = Object.keys(groupedResults);
 
     return (
-        <div className="mx-auto w-full max-w-none space-y-10 px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
+        <div className="mx-auto max-w-7xl space-y-10 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
             <section className="grid gap-4 sm:grid-cols-3">
@@ -615,53 +618,35 @@ export default async function CrystalBallPage() {
 
             {categories.map((category) => {
                 const items = resultsByCategory.get(category) ?? [];
+                const gridItems = items.map(({ stat, result }) => {
+                    const selection = userSelections.get(stat.key);
+                    const selectionFailed = selection ? isSelectionFailed(stat, selection, result) : false;
+
+                    return {
+                        id: stat.key,
+                        title: stat.question,
+                        subtitle: `Worth ${stat.points} points`,
+                        content: (
+                            <MetricResultDisplay
+                                stat={stat}
+                                result={result}
+                                selection={selection}
+                                isSelectionFailed={selectionFailed}
+                            />
+                        ),
+                        cardClassName: selectionFailed ? "border-accent/70 bg-accent/10 dark:bg-accent/15" : undefined,
+                        dataAttributes: selectionFailed
+                            ? ({ "data-selection-status": "failed" } as const)
+                            : undefined,
+                    };
+                });
                 return (
                     <section key={category} className="space-y-6">
                         <div>
                             <h2 className="text-2xl font-semibold">{category}</h2>
                             <p className="text-sm text-muted">Live results for {category.toLowerCase()} questions.</p>
                         </div>
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-                            {items.map(({ stat, result }) => {
-                                const selection = userSelections.get(stat.key);
-                                const selectionFailed = selection
-                                    ? isSelectionFailed(stat, selection, result)
-                                    : false;
-                                const articleClassName = [
-                                    "group flex h-full flex-col rounded-md border-base bg-card transition-colors",
-                                    selectionFailed ? "border-accent bg-accent/10" : "",
-                                ]
-                                    .filter(Boolean)
-                                    .join(" ");
-                                const headerClassName = [
-                                    "border-b border-border px-4 py-3 transition-colors",
-                                    selectionFailed ? "bg-accent/10" : "bg-card",
-                                ]
-                                    .filter(Boolean)
-                                    .join(" ");
-
-                                return (
-                                    <article
-                                        key={stat.key}
-                                        className={articleClassName}
-                                        data-selection-status={selectionFailed ? "failed" : undefined}
-                                    >
-                                        <header className={headerClassName}>
-                                            <h3 className="font-semibold">{stat.question}</h3>
-                                            <p className="text-xs text-muted">Worth {stat.points} points</p>
-                                        </header>
-                                        <div className="p-4 flex-1">
-                                            <MetricResultDisplay
-                                                stat={stat}
-                                                result={result}
-                                                selection={selection}
-                                                isSelectionFailed={selectionFailed}
-                                            />
-                                        </div>
-                                    </article>
-                                );
-                            })}
-                        </div>
+                        <QuestionGrid items={gridItems} />
                     </section>
                 );
             })}

@@ -1,9 +1,14 @@
+"use client";
+
+import Image from "next/image";
 import Link from "next/link";
+import { signIn, signOut, useSession } from "next-auth/react";
 
 import ThemeToggle from "@/components/ThemeToggle";
-import SignInWithGitHubButton from "@/components/auth/SignInWithGitHubButton";
 
 export default function Header() {
+  const { data: session, status } = useSession();
+
   return (
     <header className="border-b border-border bg-card">
       <nav className="mx-auto flex w-full max-w-[95rem] items-center justify-between gap-6 p-4 text-sm">
@@ -22,8 +27,43 @@ export default function Header() {
           </Link>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {status === "authenticated" ? (
+              <>
+                {session.user?.image && (
+                  <Image
+                    src={session.user.image}
+                    alt={session.user?.name ?? "User avatar"}
+                    width={28}
+                    height={28}
+                    className="rounded-full ring-1 ring-neutral-300 dark:ring-neutral-700"
+                  />
+                )}
+                <span className="hidden text-sm font-medium text-neutral-900 dark:text-neutral-100 sm:inline">
+                  {session.user?.name ??
+                    (session.user?.email
+                      ? session.user.email.split("@")[0]
+                      : "Signed in")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-900 shadow-sm hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => signIn("github")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-900 shadow-sm hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+              >
+                Sign in with GitHub
+              </button>
+            )}
+          </div>
           <ThemeToggle />
-          <SignInWithGitHubButton />
         </div>
       </nav>
     </header>

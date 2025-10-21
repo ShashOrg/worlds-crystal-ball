@@ -3,22 +3,37 @@ const DEFAULT_LOCALE = "en-US";
 const API_KEY =
   process.env.LOLESPORTS_API_KEY ?? process.env.LOLESports_API_KEY ?? undefined;
 
-function assertApiKey() {
+let loggedKeyPresence = false;
+
+function logKeyPresenceOnce() {
+  if (!loggedKeyPresence) {
+    const masked = API_KEY ? `yes (${API_KEY.slice(0, 4)}****)` : "no";
+    console.log("[lolesports] key present:", masked);
+    loggedKeyPresence = true;
+  }
+}
+
+function requireKey() {
+  logKeyPresenceOnce();
   if (!API_KEY) {
     throw new Error("Missing LOLESPORTS_API_KEY");
   }
 }
 
-async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
-  assertApiKey();
+async function fetchGw(path: string, retries = 2): Promise<Response> {
+  requireKey();
 
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const response = await fetch(url, {
+      const response = await fetch(`${API_HOST}${path}`, {
+        method: "GET",
         headers: {
           "x-api-key": API_KEY!,
+          Origin: "https://lolesports.com",
+          Referer: "https://lolesports.com/",
+          "User-Agent": "Mozilla/5.0 worlds-crystal-ball (Next.js server)",
         },
       });
 
@@ -26,14 +41,18 @@ async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
         return response;
       }
 
+      if (response.status === 403) {
+        console.warn(
+          "[lolesports] 403 – check LOLESPORTS_API_KEY, and that Origin/Referer headers are set",
+        );
+      }
+
       lastError = new Error(`HTTP ${response.status}`);
     } catch (error) {
       lastError = error;
     }
 
-    await new Promise((resolve) =>
-      setTimeout(resolve, 250 * (attempt + 1)),
-    );
+    await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
   }
 
   if (lastError instanceof Error) {
@@ -47,7 +66,7 @@ type RawScheduleResponse = {
   data?: {
     schedule?: {
       events?: Array<{
-        id?: string;
+        id?: string | null;
         startTime?: string | null;
         state?: string | null;
         match?: {
@@ -61,6 +80,12 @@ type RawScheduleResponse = {
               gameWins?: number | null;
             } | null;
           }> | null;
+          stage?: {
+            id?: string | null;
+          } | null;
+          tournament?: {
+            id?: string | null;
+          } | null;
         } | null;
       }> | null;
     } | null;
@@ -81,6 +106,11 @@ export type Match = {
 export type LolesportsStageSchedule = {
   stageId: string;
   matches: Match[];
+};
+
+export type ScheduleArgs = {
+  tournamentId?: string;
+  stageId?: string;
 };
 
 const VALID_SERIES_LENGTHS = new Set<Match["bestOf"]>([1, 3, 5]);
@@ -106,54 +136,82 @@ function toScoreValue(value: number | null | undefined): number {
   return 0;
 }
 
-export async function getStageSchedule(
-  stageId: string,
-): Promise<LolesportsStageSchedule> {
-  if (!stageId) {
-    throw new Error("Stage ID is required to fetch a LoLEsports schedule");
+function normalizeSchedule(
+  payload: RawScheduleResponse,
+  filterStageId?: string,
+): LolesportsStageSchedule {
+  const events = payload.data?.schedule?.events ?? [];
+  const matches: Match[] = [];
+  let derivedStageId = filterStageId ?? "";
+
+  for (const event of events) {
+    const match = event.match;
+    if (!match?.id) {
+      continue;
+    }
+
+    const bestOf = match.strategy?.count ?? undefined;
+    if (!VALID_SERIES_LENGTHS.has(bestOf as Match["bestOf"])) {
+      continue;
+    }
+
+    const normalizedBestOf = bestOf as Match["bestOf"];
+    const stageFromPayload = match.stage?.id ?? undefined;
+
+    if (filterStageId && stageFromPayload && stageFromPayload !== filterStageId) {
+      continue;
+    }
+
+    const normalizedStageId = stageFromPayload ?? filterStageId ?? "";
+
+    if (!derivedStageId && normalizedStageId) {
+      derivedStageId = normalizedStageId;
+    }
+
+    matches.push({
+      id: match.id,
+      stageId: normalizedStageId,
+      bestOf: normalizedBestOf,
+      state: normalizeState(match.state ?? event.state ?? undefined),
+      score: {
+        a: toScoreValue(match.teams?.[0]?.result?.gameWins ?? null),
+        b: toScoreValue(match.teams?.[1]?.result?.gameWins ?? null),
+      },
+      startTime: event.startTime ?? undefined,
+    });
   }
+
+  return {
+    stageId: derivedStageId,
+    matches,
+  };
+}
+
+export async function getStageSchedule(
+  args: ScheduleArgs,
+): Promise<LolesportsStageSchedule> {
+  if (!args.tournamentId && !args.stageId) {
+    throw new Error(
+      "Either tournamentId or stageId is required to fetch a LoLEsports schedule",
+    );
+  }
+
+  const params = new URLSearchParams({ hl: DEFAULT_LOCALE });
+  if (args.tournamentId) {
+    params.set("tournamentId", args.tournamentId);
+  } else if (args.stageId) {
+    params.set("stageId", args.stageId);
+  }
+
+  const path = `/getSchedule?${params.toString()}`;
 
   try {
-    const url = new URL(`${API_HOST}/getSchedule`);
-    url.searchParams.set("hl", DEFAULT_LOCALE);
-    url.searchParams.set("stageId", stageId);
-
-    const response = await fetchWithRetry(url.toString(), 2);
-
+    const response = await fetchGw(path, 2);
     const payload = (await response.json()) as RawScheduleResponse;
-    const events = payload.data?.schedule?.events ?? [];
-
-    const matches = events
-      .map((event) => {
-        const match = event.match;
-        if (!match?.id) {
-          return null;
-        }
-
-        const bestOf = match.strategy?.count ?? undefined;
-        if (!VALID_SERIES_LENGTHS.has(bestOf as Match["bestOf"])) {
-          return null;
-        }
-
-        const normalizedBestOf = bestOf as Match["bestOf"];
-        const state = normalizeState(match.state ?? event.state ?? undefined);
-        const scoreA = toScoreValue(match.teams?.[0]?.result?.gameWins ?? null);
-        const scoreB = toScoreValue(match.teams?.[1]?.result?.gameWins ?? null);
-
-        return {
-          id: match.id,
-          stageId,
-          bestOf: normalizedBestOf,
-          state,
-          score: { a: scoreA, b: scoreB },
-          startTime: event.startTime ?? undefined,
-        } satisfies Match;
-      })
-      .filter((match): match is Match => Boolean(match));
-
-    return { stageId, matches };
+    return normalizeSchedule(payload, args.stageId);
   } catch (error) {
-    console.warn("[lolesports] failed to fetch stage schedule", stageId, error);
-    return { stageId, matches: [] };
+    console.warn("[lolesports] schedule fetch fallback to empty:", error);
+    return { stageId: args.stageId ?? "", matches: [] };
   }
 }
+

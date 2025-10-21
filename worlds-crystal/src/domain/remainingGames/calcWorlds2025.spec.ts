@@ -6,7 +6,10 @@ import type { Match } from "@/src/lib/lolesportsClient";
 const mockGameCount = vi.fn<(args?: unknown) => Promise<number>>();
 
 const mockGetStageSchedule = vi.fn<
-  (stageId: string) => Promise<{ stageId: string; matches: Match[] }>
+  (args: { tournamentId?: string; stageId?: string }) => Promise<{
+    stageId: string;
+    matches: Match[];
+  }>
 >();
 
 vi.mock("@/src/lib/lolesportsClient", () => ({
@@ -22,6 +25,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const SWISS_STAGE_ID = "113475482880934049";
+const TOURNAMENT_ID = "113475452383887518";
 
 const defaultStageSchedule = { stageId: SWISS_STAGE_ID, matches: [] as Match[] };
 let nextMatchId = 0;
@@ -101,7 +105,10 @@ describe("computeRemainingGamesWorlds2025", () => {
     expect(result.total).toEqual({ min: 57, max: 81 });
     expect(result.played).toEqual({ maps: 10, series: 7 });
     expect(result.seriesLeft).toEqual({ total: 33 });
-    expect(mockGetStageSchedule).toHaveBeenCalledWith(SWISS_STAGE_ID);
+    expect(mockGetStageSchedule).toHaveBeenCalledWith({
+      tournamentId: TOURNAMENT_ID,
+      stageId: SWISS_STAGE_ID,
+    });
   });
 
   it("falls back to format totals when future Swiss rounds are unpublished", async () => {
@@ -170,7 +177,7 @@ describe("computeRemainingGamesWorlds2025", () => {
     expect(result.knockouts.min).toBe(21);
     expect(result.knockouts.max).toBe(35);
     expect(result.total).toEqual({ min: 21, max: 35 });
-    expect(result.played).toEqual({ maps: 59, series: 33 });
+    expect(result.played).toEqual({ maps: 70, series: 40 });
     expect(result.seriesLeft).toEqual({ total: 7 });
   });
 });

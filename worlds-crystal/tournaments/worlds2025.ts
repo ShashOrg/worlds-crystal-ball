@@ -11,6 +11,7 @@
  * semifinals, and one final — seven Bo5 series in total.
  */
 export const WORLDS_2025_TOURNAMENT = {
+  tournamentId: "113475452383887518",
   stageIds: {
     swiss: "113475482880934049",
     knockouts: undefined as string | undefined,

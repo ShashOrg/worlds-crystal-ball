@@ -34,6 +34,7 @@ export type RemainingBreakdown = {
   };
 };
 
+const TOURNAMENT_ID = WORLDS_2025_TOURNAMENT.tournamentId;
 const SWISS_STAGE_ID = WORLDS_2025_TOURNAMENT.stageIds.swiss;
 const KNOCKOUT_STAGE_ID = WORLDS_2025_TOURNAMENT.stageIds.knockouts;
 
@@ -134,8 +135,12 @@ export function fallbackRemainingWorlds2025(): RemainingBreakdown {
 }
 
 export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakdown> {
-  const swissSchedule = await getStageSchedule(SWISS_STAGE_ID);
+  const swissSchedule = await getStageSchedule({
+    tournamentId: TOURNAMENT_ID,
+    stageId: SWISS_STAGE_ID,
+  });
   const knockoutMatches = await getKnockoutMatches();
+  const allMatches: Match[] = [...swissSchedule.matches, ...knockoutMatches];
 
   const { bo1: swissBo1Matches, bo3: swissBo3Matches } = splitMatchesByLength(
     swissSchedule.matches,
@@ -201,12 +206,8 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
 
   const totalMin = swissMin + knockoutsMin;
   const totalMax = swissMax + knockoutsMax;
-  const completedMatches: Match[] = [
-    ...effectiveBo1Completed,
-    ...effectiveBo3Completed,
-    ...effectiveBo5Completed,
-  ];
-  const totalCompletedSeries = completedMatches.length;
+  const completedMatches = allMatches.filter((match) => match.state === "completed");
+  let totalCompletedSeries = completedMatches.length;
   let totalCompletedMaps = completedMatches.reduce(
     (sum, match) => sum + completedMapsForMatch(match),
     0,
@@ -215,6 +216,16 @@ export async function computeRemainingGamesWorlds2025(): Promise<RemainingBreakd
   if (totalCompletedSeries === 0 && totalCompletedMaps === 0) {
     totalCompletedMaps = await countWorlds2025MapsFromDb().catch(() => 0);
   }
+
+  const totalSeriesCap =
+    SWISS_TOTAL_BO1 + SWISS_TOTAL_BO3_SERIES + KNOCKOUT_TOTAL_BO5_SERIES;
+  const totalMapsCap =
+    SWISS_TOTAL_BO1 * MAX_MAPS_BY_SERIES[1] +
+    SWISS_TOTAL_BO3_SERIES * MAX_MAPS_BY_SERIES[3] +
+    KNOCKOUT_TOTAL_BO5_SERIES * MAX_MAPS_BY_SERIES[5];
+
+  totalCompletedSeries = Math.min(totalCompletedSeries, totalSeriesCap);
+  totalCompletedMaps = Math.min(totalCompletedMaps, totalMapsCap);
 
   const seriesLeftTotal = bo1Left + bo3SeriesLeft + bo5SeriesLeft;
 
@@ -256,7 +267,10 @@ async function getKnockoutMatches(): Promise<Match[]> {
     return [];
   }
 
-  const knockoutSchedule = await getStageSchedule(KNOCKOUT_STAGE_ID);
+  const knockoutSchedule = await getStageSchedule({
+    tournamentId: TOURNAMENT_ID,
+    stageId: KNOCKOUT_STAGE_ID,
+  });
   const { bo5 } = splitMatchesByLength(knockoutSchedule.matches);
   return bo5;
 }

@@ -7,9 +7,12 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "Worlds Crystal Ball",
   description: "Predictions, picks, and insights for Worlds.",
+};
+
+export const viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#111827" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
   ],
 };
 

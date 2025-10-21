@@ -39,7 +39,7 @@ export default function Header() {
                     className="rounded-full ring-1 ring-neutral-300 dark:ring-neutral-700"
                   />
                 )}
-                <span className="hidden text-sm font-medium text-neutral-900 dark:text-neutral-100 sm:inline">
+                <span className="hidden sm:inline text-sm font-medium text-neutral-900 dark:text-neutral-100">
                   {session.user?.name ??
                     (session.user?.email
                       ? session.user.email.split("@")[0]

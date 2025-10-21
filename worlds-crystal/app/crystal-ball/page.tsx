@@ -635,8 +635,8 @@ export default async function CrystalBallPage() {
                             />
                         ),
                         cardClassName: selectionFailed ? "border-accent/70 bg-accent/10 dark:bg-accent/15" : undefined,
-                        cardProps: selectionFailed
-                            ? ({ "data-selection-status": "failed" } as React.HTMLAttributes<HTMLElement>)
+                        dataAttributes: selectionFailed
+                            ? ({ "data-selection-status": "failed" } as const)
                             : undefined,
                     };
                 });

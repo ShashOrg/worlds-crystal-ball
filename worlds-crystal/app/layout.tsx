@@ -18,8 +18,8 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className="h-full">
-      <body className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100 antialiased transition-colors duration-300">
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen h-full bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100 antialiased transition-colors duration-300">
         <Providers>
           <Header />
           <main className="mx-auto w-full max-w-[95rem] p-6">{children}</main>

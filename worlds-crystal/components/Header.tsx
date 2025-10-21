@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import ThemeToggleButton from "@/components/ThemeToggleButton";
+import ThemeToggle from "@/components/ThemeToggle";
 import SignInWithGitHubButton from "@/components/auth/SignInWithGitHubButton";
 
 export default function Header() {
@@ -22,7 +22,7 @@ export default function Header() {
           </Link>
         </div>
         <div className="flex items-center gap-3">
-          <ThemeToggleButton />
+          <ThemeToggle />
           <SignInWithGitHubButton />
         </div>
       </nav>

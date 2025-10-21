@@ -11,8 +11,6 @@
   --color-muted: 100 116 139;   /* slate-500 */
   --color-accent: 59 130 246;   /* blue-500 */
   --color-border: 226 232 240;  /* slate-200 */
-  --color-highlight: 191 219 254; /* blue-200 */
-  --color-highlight-foreground: 30 64 175; /* blue-700 */
 }
 
 /* Dark overrides: change the same tokens under .dark */
@@ -23,8 +21,16 @@
   --color-muted: 148 163 184;   /* slate-400 */
   --color-accent: 96 165 250;   /* blue-400 */
   --color-border: 51 65 85;     /* slate-700 */
-  --color-highlight: 55 65 81;   /* gray-700 */
-  --color-highlight-foreground: 226 232 240; /* slate-200 */
+}
+
+/* Badge + row styling for a user's pick */
+.your-pick-badge {
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold
+    bg-accent/15 text-accent border border-accent/30;
+}
+
+.tr-your-pick {
+  @apply bg-accent/5;
 }
 
 /* === Base element styles (safe to use utilities now that @theme is defined) === */

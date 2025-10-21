@@ -221,24 +221,24 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                         const isHighlighted = highlightId === entry.id;
                         const rowClass = [
                             "border-t border-border",
-                            isHighlighted ? "bg-highlight" : "",
+                            isHighlighted ? "tr-your-pick" : "",
                         ]
                             .filter(Boolean)
                             .join(" ");
                         const nameClass = [
                             "p-2",
-                            isHighlighted ? "font-semibold text-highlight-foreground" : "",
+                            isHighlighted ? "font-semibold" : "",
                         ]
                             .filter(Boolean)
                             .join(" ");
                         const valueClass = [
                             "p-2 text-right",
-                            isHighlighted ? "font-semibold text-highlight-foreground" : "",
+                            isHighlighted ? "font-semibold" : "",
                         ]
                             .filter(Boolean)
                             .join(" ");
                         const detailClass = isHighlighted
-                            ? "p-2 text-right text-highlight-foreground"
+                            ? "p-2 text-right font-semibold"
                             : "p-2 text-right text-muted";
 
                         return (
@@ -247,9 +247,7 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                                     <div className="flex items-center justify-between gap-2">
                                         <span>{entry.name}</span>
                                         {isHighlighted ? (
-                                            <span className="text-xs font-semibold uppercase tracking-wide text-highlight-foreground">
-                                                Your pick
-                                            </span>
+                                            <span className="your-pick-badge">YOUR PICK</span>
                                         ) : null}
                                     </div>
                                 </td>
@@ -261,20 +259,23 @@ export function EntityMetricTable({ entries, selection, columns }: EntityMetricT
                         );
                     })}
                     {showHighlightRow && selection ? (
-                        <tr className="border-t border-border bg-highlight">
-                            <td className="p-2 font-semibold text-highlight-foreground">
-                                <div className="flex flex-col">
-                                    <span>Your pick: {selection.label}</span>
+                        <tr className="border-t border-border tr-your-pick">
+                            <td className="p-2">
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold">{selection.label}</span>
+                                        <span className="your-pick-badge">YOUR PICK</span>
+                                    </div>
                                     {highlightRowMessage ? (
-                                        <span className="text-xs font-normal text-highlight-foreground">{highlightRowMessage}</span>
+                                        <span className="text-xs text-muted">{highlightRowMessage}</span>
                                     ) : null}
                                 </div>
                             </td>
-                            <td className="p-2 text-right font-semibold text-highlight-foreground">
+                            <td className="p-2 text-right font-semibold">
                                 {selection.entry ? getValueDisplay(selection.entry) : "—"}
                             </td>
                             {showDetailColumn ? (
-                                <td className="p-2 text-right text-highlight-foreground">
+                                <td className="p-2 text-right font-semibold">
                                     {selection.entry ? selection.entry.detail ?? "—" : "0"}
                                 </td>
                             ) : null}

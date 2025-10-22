@@ -5,16 +5,21 @@ import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ba
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
 import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 import { getServerSession } from "next-auth";
-import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import QuestionGrid from "@/components/QuestionGrid";
 import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetricTable";
 
 const CURRENT_SEASON = 2025;
 
-type SelectionWithRelations = Prisma.UserPickSelectionGetPayload<{
-    include: { champion: true; player: true };
-}>;
+async function findUserPickWithSelections(userId: string, season: number) {
+    return prisma.userPick.findUnique({
+        where: { userId_season: { userId, season } },
+        include: { selections: { include: { champion: true, player: true } } },
+    });
+}
+
+type UserPickWithSelections = Awaited<ReturnType<typeof findUserPickWithSelections>>;
+type SelectionWithRelations = NonNullable<UserPickWithSelections>["selections"][number];
 
 type UserSelectionInfo =
     | {
@@ -560,10 +565,7 @@ export default async function CrystalBallPage() {
     const userSelections = new Map<string, UserSelectionInfo>();
 
     if (session?.user?.id) {
-        const userPick = await prisma.userPick.findUnique({
-            where: { userId_season: { userId: session.user.id, season: CURRENT_SEASON } },
-            include: { selections: { include: { champion: true, player: true } } },
-        });
+        const userPick = await findUserPickWithSelections(session.user.id, CURRENT_SEASON);
 
         if (userPick?.selections?.length) {
             const selectionEntries = await Promise.all(

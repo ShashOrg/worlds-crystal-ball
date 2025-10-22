@@ -20,9 +20,29 @@ export type CrystalBallSummary = {
 
 const SUMMARY_METRIC_ID = "crystal_ball_summary";
 
+type KeyValueDelegate = typeof prisma extends { keyValue: infer Delegate }
+    ? Delegate
+    : never;
+
 type ExternalMetricDelegate = typeof prisma extends { externalMetric: infer Delegate }
     ? Delegate
     : never;
+
+function getKeyValueDelegate(): KeyValueDelegate | null {
+    const candidate = (prisma as unknown as { keyValue?: KeyValueDelegate }).keyValue;
+    if (!candidate) {
+        return null;
+    }
+
+    const hasFindUnique = typeof (candidate as { findUnique?: unknown }).findUnique === "function";
+    const hasUpsert = typeof (candidate as { upsert?: unknown }).upsert === "function";
+
+    if (!hasFindUnique || !hasUpsert) {
+        return null;
+    }
+
+    return candidate;
+}
 
 function getExternalMetricDelegate(): ExternalMetricDelegate | null {
     const candidate = (prisma as unknown as { externalMetric?: ExternalMetricDelegate }).externalMetric;
@@ -159,6 +179,24 @@ function isCrystalBallSummary(value: unknown): value is CrystalBallSummary {
 }
 
 export async function loadPersistedCrystalBallSummary(): Promise<CrystalBallSummary | null> {
+    const keyValueDelegate = getKeyValueDelegate();
+    if (keyValueDelegate) {
+        const record = await keyValueDelegate.findUnique({
+            where: { key: SUMMARY_METRIC_ID },
+        });
+
+        if (!record) {
+            return null;
+        }
+
+        const data = record.value as unknown;
+        if (!isCrystalBallSummary(data)) {
+            return null;
+        }
+
+        return data;
+    }
+
     const delegate = getExternalMetricDelegate();
     if (delegate) {
         const record = await delegate.findUnique({
@@ -194,24 +232,47 @@ export async function loadPersistedCrystalBallSummary(): Promise<CrystalBallSumm
 }
 
 export async function persistCrystalBallSummary(summary: CrystalBallSummary): Promise<void> {
-    const delegate = getExternalMetricDelegate();
-    if (delegate) {
-        await delegate.upsert({
-            where: { metricId: SUMMARY_METRIC_ID },
-            update: { data: summary },
-            create: { metricId: SUMMARY_METRIC_ID, data: summary },
+    const keyValueDelegate = getKeyValueDelegate();
+    if (keyValueDelegate) {
+        const now = new Date();
+        await keyValueDelegate.upsert({
+            where: { key: SUMMARY_METRIC_ID },
+            create: {
+                key: SUMMARY_METRIC_ID,
+                value: summary as any,
+                updatedAt: now,
+            } as any,
+            update: {
+                value: summary as any,
+                updatedAt: now,
+            } as any,
         });
         return;
     }
 
-    await prisma.$executeRawUnsafe(
-        `INSERT INTO "ExternalMetric" ("metricId", "data")
-         VALUES ($1, $2::jsonb)
-         ON CONFLICT ("metricId") DO UPDATE
-         SET "data" = EXCLUDED."data", "updatedAt" = NOW()`,
-        SUMMARY_METRIC_ID,
-        JSON.stringify(summary),
-    );
+    const delegate = getExternalMetricDelegate();
+    if (delegate) {
+        await delegate.upsert({
+            where: { metricId: SUMMARY_METRIC_ID },
+            update: { data: summary } as any,
+            create: { metricId: SUMMARY_METRIC_ID, data: summary } as any,
+        });
+        return;
+    }
+
+    const externalMetricClient = (prisma as unknown as {
+        externalMetric?: { upsert?: typeof prisma.externalMetric.upsert };
+    }).externalMetric;
+
+    if (!externalMetricClient || typeof externalMetricClient.upsert !== "function") {
+        throw new Error("[crystal-ball] ExternalMetric delegate unavailable for persistence");
+    }
+
+    await externalMetricClient.upsert({
+        where: { metricId: SUMMARY_METRIC_ID },
+        create: { metricId: SUMMARY_METRIC_ID, data: summary },
+        update: { data: summary },
+    });
 }
 
 export async function recomputeAndStoreCrystalBallSummary(

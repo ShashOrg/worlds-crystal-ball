@@ -4,24 +4,28 @@ type QuestionCardBaseProps = React.PropsWithChildren<{
   title: string;
   subtitle?: string;
   onClick?: () => void;
+  onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
   as?: "button" | "div";
   className?: string;
 }>;
 
 type QuestionCardProps = QuestionCardBaseProps &
-  Omit<React.HTMLAttributes<HTMLElement>, "onClick" | "children" | "className">;
+  Omit<
+    React.HTMLAttributes<HTMLDivElement>,
+    "onClick" | "onKeyDown" | "children" | "className"
+  >;
 
 export default function QuestionCard({
   title,
   subtitle,
   children,
   onClick,
+  onKeyDown,
   as = "div",
   className = "",
   ...rest
 }: QuestionCardProps) {
   const Comp = (as ?? "div") as React.ElementType;
-  const { onKeyDown, ...restProps } = rest;
 
   const combinedClassName = [
     "group relative rounded-2xl",
@@ -43,17 +47,15 @@ export default function QuestionCard({
       onClick={onClick}
       className={combinedClassName}
       {...(onClick ? { role: "button", tabIndex: 0 } : {})}
-      onKeyDown={(e: React.KeyboardEvent) => {
-        if (onKeyDown) {
-          onKeyDown(e);
-        }
+      onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+        onKeyDown?.(e);
         if (!onClick) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onClick();
         }
       }}
-      {...restProps}
+      {...rest}
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">

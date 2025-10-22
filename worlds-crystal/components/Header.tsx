@@ -9,6 +9,8 @@ import ThemeToggle from "@/components/ThemeToggle";
 export default function Header() {
   const { data: session, status } = useSession();
 
+  const isAdmin = Boolean(session?.user?.isAdmin);
+
   return (
     <header className="border-b border-border bg-card">
       <nav className="mx-auto flex w-full max-w-[95rem] items-center justify-between gap-6 p-4 text-sm">
@@ -19,9 +21,11 @@ export default function Header() {
           <Link href="/crystal-ball" className="transition-opacity hover:opacity-80">
             Crystal Ball
           </Link>
-          <Link href="/admin/import" className="transition-opacity hover:opacity-80">
-            Admin Import
-          </Link>
+          {isAdmin && (
+            <Link href="/admin/import" className="transition-opacity hover:opacity-80">
+              Admin Import
+            </Link>
+          )}
           <Link href="/picks" className="transition-opacity hover:opacity-80">
             My Picks
           </Link>

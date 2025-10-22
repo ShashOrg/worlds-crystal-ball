@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Environment variables
+
+Authentication uses NextAuth with GitHub and Google providers. Create a `.env.local` file and set the required secrets:
+
+```env
+NEXTAUTH_SECRET=replace_with_strong_random_value
+NEXTAUTH_URL=http://localhost:3000
+
+GITHUB_ID=your_github_oauth_client_id
+GITHUB_SECRET=your_github_oauth_client_secret
+
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+```
+
+In production, point `NEXTAUTH_URL` at the deployed URL and configure the same variables in your hosting environment.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -54,13 +54,12 @@ export default function Header() {
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={() => signIn("github")}
+              <Link
+                href="/signin"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-900 shadow-sm hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
               >
-                Sign in with GitHub
-              </button>
+                Sign in
+              </Link>
             )}
           </div>
           <ThemeToggle />

@@ -33,6 +33,9 @@ GITHUB_SECRET=your_github_oauth_client_secret
 
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+
+# Comma-separated list of admin email addresses
+ADMIN_EMAILS=you@company.com,teammate@company.com
 ```
 
 In production, point `NEXTAUTH_URL` at the deployed URL and configure the same variables in your hosting environment.

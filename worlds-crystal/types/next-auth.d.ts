@@ -5,6 +5,7 @@ declare module "next-auth" {
         user: DefaultSession["user"] & {
             id: string;
             role: string;
+            isAdmin: boolean;
         };
     }
 
@@ -12,6 +13,7 @@ declare module "next-auth" {
     interface User {
         id: string;
         role: string;
+        isAdmin: boolean;
     }
 }
 
@@ -19,5 +21,6 @@ declare module "next-auth/jwt" {
     interface JWT {
         sub?: string; // NextAuth sets token.sub to the user id
         role?: string;
+        isAdmin?: boolean;
     }
 }

@@ -10,7 +10,7 @@ export default async function ImportPage() {
     redirect("/signin");
   }
 
-  if (session.user.role !== "admin") {
+  if (!session.user.isAdmin) {
     redirect("/");
   }
 

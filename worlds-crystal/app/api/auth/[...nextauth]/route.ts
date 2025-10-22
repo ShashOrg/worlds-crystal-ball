@@ -3,7 +3,11 @@ import NextAuth, { type NextAuthOptions } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
+
 import { prisma } from "@/lib/prisma";
+
+const adminEmails =
+    process.env.ADMIN_EMAILS?.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean) ?? [];
 
 export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(prisma),
@@ -24,8 +28,10 @@ export const authOptions: NextAuthOptions = {
     callbacks: {
         session: ({ session, user }) => {
             if (session.user) {
+                const email = (user?.email ?? session.user.email ?? "").toLowerCase();
                 session.user.id = user.id;
                 session.user.role = user.role ?? "user";
+                session.user.isAdmin = adminEmails.includes(email);
             }
             return session;
         },

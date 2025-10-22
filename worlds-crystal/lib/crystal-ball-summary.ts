@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getWorldsEventSchedule } from "@/lib/worlds-event-metadata";
+import type { Prisma } from "@prisma/client";
 
 export type GameSummarySource = {
     id: bigint;
@@ -19,6 +20,17 @@ export type CrystalBallSummary = {
 };
 
 const SUMMARY_METRIC_ID = "crystal_ball_summary";
+
+function createSummaryPayload(summary: CrystalBallSummary): Prisma.JsonObject {
+    return {
+        totalGames: summary.totalGames,
+        totalMatches: summary.totalMatches,
+        totalScheduledMatches: summary.totalScheduledMatches,
+        totalPotentialMatches: summary.totalPotentialMatches,
+        totalPossibleMatches: summary.totalPossibleMatches,
+        maxRemainingMatches: summary.maxRemainingMatches,
+    } satisfies Prisma.JsonObject;
+}
 
 type KeyValueDelegate = typeof prisma extends { keyValue: infer Delegate }
     ? Delegate
@@ -235,27 +247,29 @@ export async function persistCrystalBallSummary(summary: CrystalBallSummary): Pr
     const keyValueDelegate = getKeyValueDelegate();
     if (keyValueDelegate) {
         const now = new Date();
+        const summaryPayload = createSummaryPayload(summary);
         await keyValueDelegate.upsert({
             where: { key: SUMMARY_METRIC_ID },
             create: {
                 key: SUMMARY_METRIC_ID,
-                value: summary as any,
+                value: summaryPayload,
                 updatedAt: now,
-            } as any,
+            },
             update: {
-                value: summary as any,
+                value: summaryPayload,
                 updatedAt: now,
-            } as any,
+            },
         });
         return;
     }
 
     const delegate = getExternalMetricDelegate();
     if (delegate) {
+        const summaryPayload = createSummaryPayload(summary);
         await delegate.upsert({
             where: { metricId: SUMMARY_METRIC_ID },
-            update: { data: summary } as any,
-            create: { metricId: SUMMARY_METRIC_ID, data: summary } as any,
+            update: { data: summaryPayload },
+            create: { metricId: SUMMARY_METRIC_ID, data: summaryPayload },
         });
         return;
     }
@@ -268,10 +282,11 @@ export async function persistCrystalBallSummary(summary: CrystalBallSummary): Pr
         throw new Error("[crystal-ball] ExternalMetric delegate unavailable for persistence");
     }
 
+    const summaryPayload = createSummaryPayload(summary);
     await externalMetricClient.upsert({
         where: { metricId: SUMMARY_METRIC_ID },
-        create: { metricId: SUMMARY_METRIC_ID, data: summary },
-        update: { data: summary },
+        create: { metricId: SUMMARY_METRIC_ID, data: summaryPayload },
+        update: { data: summaryPayload },
     });
 }
 

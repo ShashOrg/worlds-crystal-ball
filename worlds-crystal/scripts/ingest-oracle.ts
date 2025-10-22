@@ -1024,14 +1024,18 @@ async function main() {
                 ? buildCommunityMetricResultsFromWorkbook(communityData.workbook)
                 : buildCommunityMetricResults(parseCommunityMatrix(communityData.csvText.replace(/^\uFEFF/, "")));
         const entries = Object.entries(communityMetrics);
+        type ExternalMetricDataValue = Parameters<
+            typeof prisma.externalMetric.upsert
+        >[0]["create"]["data"];
 
         for (const [metricId, data] of entries) {
-              await prisma.externalMetric.upsert({
-                    where: { metricId },
-                create: { metricId, data }, // Prisma sets createdAt; updatedAt managed automatically
-            update: { data },
-              });
-            }
+            const payload = data as unknown as ExternalMetricDataValue;
+            await prisma.externalMetric.upsert({
+                where: { metricId },
+                create: { metricId, data: payload }, // Prisma sets createdAt; updatedAt managed automatically
+                update: { data: payload },
+            });
+        }
 
         console.log(`[community] synced ${entries.length} metrics from community sheet`);
     } else {

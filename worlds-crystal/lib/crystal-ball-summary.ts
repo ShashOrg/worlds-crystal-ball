@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getWorldsEventSchedule } from "@/lib/worlds-event-metadata";
-import type { Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
+
+type JsonObject = import("@prisma/client").Prisma.JsonObject;
 
 export type GameSummarySource = {
     id: bigint;
@@ -21,7 +23,7 @@ export type CrystalBallSummary = {
 
 const SUMMARY_METRIC_ID = "crystal_ball_summary";
 
-function createSummaryPayload(summary: CrystalBallSummary): Prisma.JsonObject {
+function createSummaryPayload(summary: CrystalBallSummary): JsonObject {
     return {
         totalGames: summary.totalGames,
         totalMatches: summary.totalMatches,
@@ -29,19 +31,24 @@ function createSummaryPayload(summary: CrystalBallSummary): Prisma.JsonObject {
         totalPotentialMatches: summary.totalPotentialMatches,
         totalPossibleMatches: summary.totalPossibleMatches,
         maxRemainingMatches: summary.maxRemainingMatches,
-    } satisfies Prisma.JsonObject;
+    } satisfies JsonObject;
 }
 
-type KeyValueDelegate = typeof prisma extends { keyValue: infer Delegate }
+type KeyValueDelegate = PrismaClient extends { keyValue: infer Delegate }
     ? Delegate
-    : never;
+    : {
+          findUnique: (args: { where: { key: string } }) => Promise<{ value: unknown } | null>;
+          upsert: (args: {
+              where: { key: string };
+              create: { key: string; value: JsonObject; updatedAt: Date };
+              update: { value: JsonObject; updatedAt: Date };
+          }) => Promise<unknown>;
+      };
 
-type ExternalMetricDelegate = typeof prisma extends { externalMetric: infer Delegate }
-    ? Delegate
-    : never;
+type ExternalMetricDelegate = PrismaClient["externalMetric"];
 
 function getKeyValueDelegate(): KeyValueDelegate | null {
-    const candidate = (prisma as unknown as { keyValue?: KeyValueDelegate }).keyValue;
+    const candidate = (prisma as PrismaClient & { keyValue?: KeyValueDelegate }).keyValue;
     if (!candidate) {
         return null;
     }
@@ -57,7 +64,9 @@ function getKeyValueDelegate(): KeyValueDelegate | null {
 }
 
 function getExternalMetricDelegate(): ExternalMetricDelegate | null {
-    const candidate = (prisma as unknown as { externalMetric?: ExternalMetricDelegate }).externalMetric;
+    const candidate = (
+        prisma as PrismaClient & { externalMetric?: ExternalMetricDelegate }
+    ).externalMetric;
     if (!candidate) {
         return null;
     }

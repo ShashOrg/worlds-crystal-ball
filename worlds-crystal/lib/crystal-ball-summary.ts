@@ -252,23 +252,27 @@ export async function persistCrystalBallSummary(summary: CrystalBallSummary): Pr
 
     const delegate = getExternalMetricDelegate();
     if (delegate) {
-        const now = new Date();
         await delegate.upsert({
             where: { metricId: SUMMARY_METRIC_ID },
-            update: { data: summary, updatedAt: now } as any,
-            create: { metricId: SUMMARY_METRIC_ID, data: summary, updatedAt: now } as any,
+            update: { data: summary } as any,
+            create: { metricId: SUMMARY_METRIC_ID, data: summary } as any,
         });
         return;
     }
 
-    await prisma.$executeRawUnsafe(
-        `INSERT INTO "ExternalMetric" ("metricId", "data")
-         VALUES ($1, $2::jsonb)
-         ON CONFLICT ("metricId") DO UPDATE
-         SET "data" = EXCLUDED."data", "updatedAt" = NOW()`,
-        SUMMARY_METRIC_ID,
-        JSON.stringify(summary),
-    );
+    const externalMetricClient = (prisma as unknown as {
+        externalMetric?: { upsert?: typeof prisma.externalMetric.upsert };
+    }).externalMetric;
+
+    if (!externalMetricClient || typeof externalMetricClient.upsert !== "function") {
+        throw new Error("[crystal-ball] ExternalMetric delegate unavailable for persistence");
+    }
+
+    await externalMetricClient.upsert({
+        where: { metricId: SUMMARY_METRIC_ID },
+        create: { metricId: SUMMARY_METRIC_ID, data: summary },
+        update: { data: summary },
+    });
 }
 
 export async function recomputeAndStoreCrystalBallSummary(

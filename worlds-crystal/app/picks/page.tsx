@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -15,14 +16,10 @@ function renderConstraintHelper(stat: StatisticDefinition) {
 export default async function PicksPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return (
-      <div className="p-6">
-        <p>
-          Please <Link className="underline" href="/api/auth/signin">sign in</Link> to save your picks.
-        </p>
-      </div>
-    );
+    redirect("/signin");
   }
+
+  const userId = session.user.id;
 
   const season = 2025; // make this dynamic later
   const [champions, players, games, existing, statisticTableReady, selectionTableReady] = await Promise.all([
@@ -30,7 +27,7 @@ export default async function PicksPage() {
     prisma.player.findMany({ orderBy: { handle: "asc" } }),
     prisma.game.findMany({ select: { blueTeam: true, redTeam: true, winnerTeam: true } }),
     prisma.userPick.findUnique({
-      where: { userId_season: { userId: session.user.id, season } },
+      where: { userId_season: { userId, season } },
     }),
     isStatisticTableReady(),
     isUserPickSelectionTableReady(),

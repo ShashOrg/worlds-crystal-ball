@@ -6,8 +6,53 @@ import { resolve } from "node:path";
 
 import { prisma } from "@/lib/prisma";
 
-function uniq<T>(arr: T[]) {
-  return Array.from(new Set(arr));
+// --- helpers: uniq/normalize/aliases/extraction ---
+
+function uniq<T>(xs: T[]) {
+  return Array.from(new Set(xs));
+}
+
+function keyify(name: string) {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+const TEAM_ALIASES: Record<string, string> = {
+  TES: "Top Esports",
+  BLG: "Bilibili Gaming",
+  HLE: "Hanwha Life Esports",
+  GEN: "Gen.G",
+  IG: "Invictus Gaming",
+  G2: "G2 Esports",
+  FNC: "Fnatic",
+};
+
+function applyAlias(name: string | null | undefined) {
+  const raw = name?.trim();
+  if (!raw) return raw;
+  const alias = TEAM_ALIASES[raw] ?? TEAM_ALIASES[raw.toUpperCase()];
+  return alias ?? raw;
+}
+
+function extractTeamsFromSchedule(raw: any): string[] {
+  const stages = Array.isArray(raw?.stages) ? raw.stages : [];
+
+  const found: string[] = [];
+  for (const stage of stages) {
+    const seriesList = Array.isArray(stage?.series) ? stage.series : [];
+    for (const s of seriesList) {
+      const bt = applyAlias(s?.blueTeamName ?? s?.blue ?? s?.teamBlue);
+      const rt = applyAlias(s?.redTeamName ?? s?.red ?? s?.teamRed);
+      if (typeof bt === "string" && bt.trim()) found.push(bt.trim());
+      if (typeof rt === "string" && rt.trim()) found.push(rt.trim());
+    }
+  }
+
+  const firstByKey = new Map<string, string>();
+  for (const name of found) {
+    const k = keyify(name);
+    if (!firstByKey.has(k)) firstByKey.set(k, name);
+  }
+  return Array.from(firstByKey.values());
 }
 
 function slugify(value: string) {
@@ -16,23 +61,6 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
-}
-
-function extractTeamsFromSchedule(t: { stages?: any[] }): string[] {
-  const names: string[] = [];
-  for (const stage of Array.isArray(t.stages) ? t.stages : []) {
-    for (const series of Array.isArray(stage.series) ? stage.series : []) {
-      const blue = series.blueTeamName ?? series.blue ?? series.teamBlue;
-      const red = series.redTeamName ?? series.red ?? series.teamRed;
-      if (typeof blue === "string" && blue.trim()) {
-        names.push(blue.trim());
-      }
-      if (typeof red === "string" && red.trim()) {
-        names.push(red.trim());
-      }
-    }
-  }
-  return uniq(names);
 }
 
 type SeriesPointer = {
@@ -91,7 +119,14 @@ async function main() {
 
   const filePath = resolve(process.cwd(), args[fileIndex + 1]!);
   const raw = await readFile(filePath, "utf-8");
-  const data = JSON.parse(raw) as ScheduleFile;
+  const parsed = JSON.parse(raw);
+  const data = parsed as ScheduleFile;
+
+  const container: any = Array.isArray(parsed?.stages)
+    ? parsed
+    : parsed?.tournament && Array.isArray(parsed?.tournament?.stages)
+      ? parsed.tournament
+      : parsed;
 
   const tournament = await prisma.tournament.upsert({
     where: { slug: data.tournament.slug },
@@ -108,62 +143,133 @@ async function main() {
     },
   });
 
-  const teamMap = new Map<string, number>();
-  const registerTeam = (key: string | null | undefined, id: number) => {
-    if (!key) return;
-    const trimmed = key.trim();
-    if (!trimmed) return;
-    teamMap.set(trimmed, id);
-    teamMap.set(trimmed.toLowerCase(), id);
+  type NormalizedTeam = {
+    name: string;
+    slug?: string;
+    region?: string | null;
+    rawNames: Set<string>;
   };
 
-  const explicitTeams = Array.isArray(data.teams) ? data.teams : null;
-  const teams = explicitTeams ?? extractTeamsFromSchedule(data);
+  const normalizedTeams = new Map<string, NormalizedTeam>();
+  const rememberTeam = (rawName: string | null | undefined, extra?: { slug?: string | null; region?: string | null }) => {
+    if (typeof rawName !== "string") {
+      if (extra?.slug) {
+        const fallbackName = extra.slug.trim();
+        if (fallbackName) {
+          return rememberTeam(fallbackName, extra);
+        }
+      }
+      return;
+    }
+
+    const canonical = applyAlias(rawName);
+    const clean = canonical?.trim();
+    if (!clean) return;
+
+    const key = keyify(clean);
+    const existing = normalizedTeams.get(key);
+    const slug = extra?.slug?.trim();
+    const region = extra?.region ?? null;
+
+    if (existing) {
+      if (slug && !existing.slug) existing.slug = slug;
+      if (region !== undefined && existing.region == null) existing.region = region;
+      existing.rawNames.add(rawName);
+      return;
+    }
+
+    const record: NormalizedTeam = {
+      name: clean,
+      slug: slug || undefined,
+      region: region ?? null,
+      rawNames: new Set([rawName]),
+    };
+
+    normalizedTeams.set(key, record);
+  };
+
+  const explicitTeamsRaw = Array.isArray(container?.teams)
+    ? container.teams
+    : Array.isArray(parsed?.teams)
+      ? parsed.teams
+      : null;
+
+  if (explicitTeamsRaw) {
+    for (const entry of explicitTeamsRaw) {
+      if (!entry) continue;
+      if (typeof entry === "string") {
+        rememberTeam(entry);
+        continue;
+      }
+
+      const slug = typeof entry.slug === "string" ? entry.slug : undefined;
+      const displayName =
+        typeof entry.displayName === "string" && entry.displayName.trim()
+          ? entry.displayName
+          : slug ?? null;
+      rememberTeam(displayName, { slug, region: entry.region ?? null });
+    }
+  }
+
+  const derivedTeams = extractTeamsFromSchedule(container);
+  for (const name of derivedTeams) {
+    rememberTeam(name);
+  }
+
+  const teams = Array.from(normalizedTeams.values());
   if (!teams.length) {
-    console.warn("[schedule] No teams found from JSON. Skipping team upsert.");
+    console.warn("[schedule] No teams found in schedule. Skipping team upsert.");
   } else {
     console.log(`[schedule] Upserting ${teams.length} teams…`);
   }
 
-  for (const team of teams) {
-    if (!team) continue;
-    if (typeof team === "string") {
-      const name = team.trim();
-      if (!name) continue;
-      const slug = slugify(name) || name;
-      const dbTeam = await prisma.team.upsert({
-        where: { slug },
-        create: {
-          slug,
-          displayName: name,
-        },
-        update: {
-          displayName: name,
-        },
-      });
-      registerTeam(dbTeam.slug, dbTeam.id);
-      registerTeam(name, dbTeam.id);
-      continue;
-    }
+  type TeamRecord = { id: number; slug: string; displayName: string };
+  const teamCache = new Map<string, TeamRecord>();
 
-    const slug = team.slug?.trim() || slugify(team.displayName ?? "");
+  const registerTeam = (value: string | null | undefined, record: TeamRecord) => {
+    if (!value) return;
+    const clean = value.trim();
+    if (!clean) return;
+    teamCache.set(keyify(clean), record);
+    const slugKey = slugify(clean);
+    if (slugKey) {
+      teamCache.set(keyify(slugKey), record);
+    }
+  };
+
+  for (const team of teams) {
+    const name = team.name.trim();
+    if (!name) continue;
+
+    const slug = (team.slug && team.slug.trim()) || slugify(name);
     if (!slug) continue;
-    const displayName = team.displayName?.trim() || slug;
+
     const dbTeam = await prisma.team.upsert({
       where: { slug },
       create: {
         slug,
-        displayName,
+        displayName: name,
         region: team.region ?? null,
       },
       update: {
-        displayName,
+        displayName: name,
         region: team.region ?? null,
       },
+      select: { id: true, slug: true, displayName: true },
     });
-    registerTeam(slug, dbTeam.id);
-    registerTeam(team.slug, dbTeam.id);
-    registerTeam(displayName, dbTeam.id);
+
+    registerTeam(dbTeam.displayName, dbTeam);
+    registerTeam(dbTeam.slug, dbTeam);
+    if (team.slug && team.slug !== dbTeam.slug) {
+      registerTeam(team.slug, dbTeam);
+    }
+    for (const rawName of team.rawNames) {
+      registerTeam(rawName, dbTeam);
+      const alias = applyAlias(rawName);
+      if (alias && alias !== rawName) {
+        registerTeam(alias, dbTeam);
+      }
+    }
   }
 
   type SeriesKey = string;
@@ -221,32 +327,46 @@ async function main() {
     const seriesInputs = Array.isArray(stageInput.series) ? stageInput.series : [];
 
     for (const seriesInput of seriesInputs) {
-      const resolveTeamId = (...keys: Array<string | undefined>) => {
+      const resolveTeamId = (...keys: Array<string | null | undefined>) => {
         for (const key of keys) {
-          if (!key) continue;
-          const trimmed = key.trim();
-          if (!trimmed) continue;
-          const direct = teamMap.get(trimmed) ?? teamMap.get(trimmed.toLowerCase());
-          if (direct) return direct;
-          const slug = slugify(trimmed);
-          const slugMatch = teamMap.get(slug) ?? teamMap.get(slug.toLowerCase());
-          if (slugMatch) return slugMatch;
+          if (!key || typeof key !== "string") continue;
+          const alias = applyAlias(key);
+          const candidates = uniq(
+            [key, alias]
+              .filter((candidate): candidate is string => typeof candidate === "string")
+              .map((candidate) => candidate.trim())
+              .filter(Boolean),
+          );
+
+          for (const candidate of candidates) {
+            const record = teamCache.get(keyify(candidate));
+            if (record) return record.id;
+
+            const slugCandidate = slugify(candidate);
+            if (slugCandidate) {
+              const slugRecord = teamCache.get(keyify(slugCandidate));
+              if (slugRecord) return slugRecord.id;
+            }
+          }
         }
         return undefined;
       };
 
-      const blueTeamId = resolveTeamId(
-        seriesInput.blueTeamSlug,
-        (seriesInput as any).blueTeamName,
-        (seriesInput as any).blue,
-        (seriesInput as any).teamBlue,
-      );
-      const redTeamId = resolveTeamId(
-        seriesInput.redTeamSlug,
-        (seriesInput as any).redTeamName,
-        (seriesInput as any).red,
-        (seriesInput as any).teamRed,
-      );
+      const blueName =
+        applyAlias(
+          (seriesInput as any).blueTeamName ??
+            (seriesInput as any).blue ??
+            (seriesInput as any).teamBlue,
+        )?.trim() ?? null;
+      const redName =
+        applyAlias(
+          (seriesInput as any).redTeamName ??
+            (seriesInput as any).red ??
+            (seriesInput as any).teamRed,
+        )?.trim() ?? null;
+
+      const blueTeamId = resolveTeamId(seriesInput.blueTeamSlug, blueName, (seriesInput as any).blueTeamName, (seriesInput as any).blue, (seriesInput as any).teamBlue);
+      const redTeamId = resolveTeamId(seriesInput.redTeamSlug, redName, (seriesInput as any).redTeamName, (seriesInput as any).red, (seriesInput as any).teamRed);
 
       const scheduledAt = seriesInput.scheduledAt ? new Date(seriesInput.scheduledAt) : null;
       const now = new Date();

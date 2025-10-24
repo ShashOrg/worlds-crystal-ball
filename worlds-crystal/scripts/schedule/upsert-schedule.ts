@@ -22,24 +22,17 @@ function extractTeamsFromSchedule(t: { stages?: any[] }): string[] {
   const names: string[] = [];
   for (const stage of Array.isArray(t.stages) ? t.stages : []) {
     for (const series of Array.isArray(stage.series) ? stage.series : []) {
-      const candidates = [
-        series.blueTeamSlug,
-        series.blueTeamName,
-        series.blue,
-        series.teamBlue,
-        series.redTeamSlug,
-        series.redTeamName,
-        series.red,
-        series.teamRed,
-      ];
-      for (const name of candidates) {
-        if (name && typeof name === "string") {
-          names.push(name.trim());
-        }
+      const blue = series.blueTeamName ?? series.blue ?? series.teamBlue;
+      const red = series.redTeamName ?? series.red ?? series.teamRed;
+      if (typeof blue === "string" && blue.trim()) {
+        names.push(blue.trim());
+      }
+      if (typeof red === "string" && red.trim()) {
+        names.push(red.trim());
       }
     }
   }
-  return uniq(names.filter(Boolean));
+  return uniq(names);
 }
 
 type SeriesPointer = {
@@ -128,6 +121,8 @@ async function main() {
   const teams = explicitTeams ?? extractTeamsFromSchedule(data);
   if (!teams.length) {
     console.warn("[schedule] No teams found from JSON. Skipping team upsert.");
+  } else {
+    console.log(`[schedule] Upserting ${teams.length} teams…`);
   }
 
   for (const team of teams) {

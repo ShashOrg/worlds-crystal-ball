@@ -6,6 +6,42 @@ import { resolve } from "node:path";
 
 import { prisma } from "@/lib/prisma";
 
+function uniq<T>(arr: T[]) {
+  return Array.from(new Set(arr));
+}
+
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function extractTeamsFromSchedule(t: { stages?: any[] }): string[] {
+  const names: string[] = [];
+  for (const stage of Array.isArray(t.stages) ? t.stages : []) {
+    for (const series of Array.isArray(stage.series) ? stage.series : []) {
+      const candidates = [
+        series.blueTeamSlug,
+        series.blueTeamName,
+        series.blue,
+        series.teamBlue,
+        series.redTeamSlug,
+        series.redTeamName,
+        series.red,
+        series.teamRed,
+      ];
+      for (const name of candidates) {
+        if (name && typeof name === "string") {
+          names.push(name.trim());
+        }
+      }
+    }
+  }
+  return uniq(names.filter(Boolean));
+}
+
 type SeriesPointer = {
   stage?: string;
   round: number;
@@ -28,7 +64,7 @@ type StageInput = {
   order: number;
   bestOf: number;
   type: string;
-  series: SeriesInput[];
+  series?: SeriesInput[];
 };
 
 type TeamInput = {
@@ -44,8 +80,8 @@ type ScheduleFile = {
     year: number;
     region?: string;
   };
-  stages: StageInput[];
-  teams: TeamInput[];
+  stages?: StageInput[];
+  teams?: Array<TeamInput | string>;
 };
 
 function usage(): never {
@@ -80,20 +116,59 @@ async function main() {
   });
 
   const teamMap = new Map<string, number>();
-  for (const team of data.teams) {
+  const registerTeam = (key: string | null | undefined, id: number) => {
+    if (!key) return;
+    const trimmed = key.trim();
+    if (!trimmed) return;
+    teamMap.set(trimmed, id);
+    teamMap.set(trimmed.toLowerCase(), id);
+  };
+
+  const explicitTeams = Array.isArray(data.teams) ? data.teams : null;
+  const teams = explicitTeams ?? extractTeamsFromSchedule(data);
+  if (!teams.length) {
+    console.warn("[schedule] No teams found from JSON. Skipping team upsert.");
+  }
+
+  for (const team of teams) {
+    if (!team) continue;
+    if (typeof team === "string") {
+      const name = team.trim();
+      if (!name) continue;
+      const slug = slugify(name) || name;
+      const dbTeam = await prisma.team.upsert({
+        where: { slug },
+        create: {
+          slug,
+          displayName: name,
+        },
+        update: {
+          displayName: name,
+        },
+      });
+      registerTeam(dbTeam.slug, dbTeam.id);
+      registerTeam(name, dbTeam.id);
+      continue;
+    }
+
+    const slug = team.slug?.trim() || slugify(team.displayName ?? "");
+    if (!slug) continue;
+    const displayName = team.displayName?.trim() || slug;
     const dbTeam = await prisma.team.upsert({
-      where: { slug: team.slug },
+      where: { slug },
       create: {
-        slug: team.slug,
-        displayName: team.displayName,
+        slug,
+        displayName,
         region: team.region ?? null,
       },
       update: {
-        displayName: team.displayName,
+        displayName,
         region: team.region ?? null,
       },
     });
-    teamMap.set(team.slug, dbTeam.id);
+    registerTeam(slug, dbTeam.id);
+    registerTeam(team.slug, dbTeam.id);
+    registerTeam(displayName, dbTeam.id);
   }
 
   type SeriesKey = string;
@@ -108,7 +183,15 @@ async function main() {
   }> = [];
   const createdSeries = new Map<SeriesKey, number>();
 
-  for (const stageInput of data.stages.sort((a, b) => a.order - b.order)) {
+  const stageInputs = (Array.isArray(data.stages) ? data.stages : [])
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  for (const stageInput of stageInputs) {
+    const stageOrder = stageInput.order ?? 0;
+    const stageBestOfRaw = Number(stageInput.bestOf);
+    const stageBestOf =
+      Number.isFinite(stageBestOfRaw) && stageBestOfRaw > 0 ? Math.floor(stageBestOfRaw) : 1;
     let stage = await prisma.stage.findFirst({
       where: { tournamentId: tournament.id, name: stageInput.name },
     });
@@ -117,8 +200,8 @@ async function main() {
         data: {
           tournamentId: tournament.id,
           name: stageInput.name,
-          order: stageInput.order,
-          bestOf: stageInput.bestOf,
+          order: stageOrder,
+          bestOf: stageBestOf,
           type: stageInput.type,
         },
       });
@@ -126,8 +209,8 @@ async function main() {
       stage = await prisma.stage.update({
         where: { id: stage.id },
         data: {
-          order: stageInput.order,
-          bestOf: stageInput.bestOf,
+          order: stageOrder,
+          bestOf: stageBestOf,
           type: stageInput.type,
         },
       });
@@ -140,25 +223,54 @@ async function main() {
       await prisma.series.deleteMany({ where: { id: { in: seriesIds } } });
     }
 
-    for (const seriesInput of stageInput.series) {
-      const blueTeamId = seriesInput.blueTeamSlug
-        ? teamMap.get(seriesInput.blueTeamSlug)
-        : undefined;
-      const redTeamId = seriesInput.redTeamSlug
-        ? teamMap.get(seriesInput.redTeamSlug)
-        : undefined;
+    const seriesInputs = Array.isArray(stageInput.series) ? stageInput.series : [];
+
+    for (const seriesInput of seriesInputs) {
+      const resolveTeamId = (...keys: Array<string | undefined>) => {
+        for (const key of keys) {
+          if (!key) continue;
+          const trimmed = key.trim();
+          if (!trimmed) continue;
+          const direct = teamMap.get(trimmed) ?? teamMap.get(trimmed.toLowerCase());
+          if (direct) return direct;
+          const slug = slugify(trimmed);
+          const slugMatch = teamMap.get(slug) ?? teamMap.get(slug.toLowerCase());
+          if (slugMatch) return slugMatch;
+        }
+        return undefined;
+      };
+
+      const blueTeamId = resolveTeamId(
+        seriesInput.blueTeamSlug,
+        (seriesInput as any).blueTeamName,
+        (seriesInput as any).blue,
+        (seriesInput as any).teamBlue,
+      );
+      const redTeamId = resolveTeamId(
+        seriesInput.redTeamSlug,
+        (seriesInput as any).redTeamName,
+        (seriesInput as any).red,
+        (seriesInput as any).teamRed,
+      );
 
       const scheduledAt = seriesInput.scheduledAt ? new Date(seriesInput.scheduledAt) : null;
       const now = new Date();
       const status = scheduledAt && scheduledAt <= now ? "in_progress" : "scheduled";
 
-      const bestOf = seriesInput.bestOf ?? stageInput.bestOf;
+      const rawBestOf = seriesInput.bestOf ?? stageBestOf;
+      const parsedBestOf = Number(rawBestOf);
+      const fallbackBestOf = Number(stageBestOf);
+      const bestOf = Number.isFinite(parsedBestOf) && parsedBestOf > 0 ? parsedBestOf : fallbackBestOf;
+      const resolvedBestOf =
+        Number.isFinite(bestOf) && bestOf > 0
+          ? Math.floor(bestOf)
+          : Math.max(1, Number.isFinite(fallbackBestOf) && fallbackBestOf > 0 ? Math.floor(fallbackBestOf) : 1);
       const series = await prisma.series.create({
         data: {
           stageId: stage.id,
           round: seriesInput.round,
           indexInRound: seriesInput.indexInRound,
-          bestOf,
+          bestOf: resolvedBestOf > 0 ? resolvedBestOf : 1,
           status,
           scheduledAt,
           blueTeamId: blueTeamId ?? null,
@@ -185,7 +297,8 @@ async function main() {
         });
       }
 
-      const matches = Array.from({ length: bestOf }, (_, idx) => ({
+      const matchCount = resolvedBestOf > 0 ? resolvedBestOf : 1;
+      const matches = Array.from({ length: matchCount }, (_, idx) => ({
         seriesId: series.id,
         gameIndex: idx + 1,
         status,

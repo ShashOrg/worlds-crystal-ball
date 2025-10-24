@@ -53,6 +53,26 @@ body {
 /* Optional scrollbar tweak */
 * { scrollbar-color: rgb(var(--color-border)) transparent; }
 
+/* Make native <select> dropdowns readable in dark mode */
+.dark select,
+.dark select:focus {
+  color: #e5e7eb;
+  background-color: #111827;
+}
+
+.dark select option,
+.dark select optgroup {
+  color: #111827;
+  background-color: #ffffff;
+}
+
+.dark select option:checked,
+.dark select option:focus,
+.dark select option:hover {
+  color: #ffffff;
+  background-color: #2563eb;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hover\:-translate-y-\[2px\] {
     transform: none !important;

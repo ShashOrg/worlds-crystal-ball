@@ -1,26 +1,986 @@
 {
-  "tournament": { "slug": "worlds-2025", "name": "Worlds 2025", "year": 2025 },
-  "stages": [
-    {
-      "name": "Knockouts",
-      "order": 2,
-      "bestOf": 5,
-      "type": "Knockout",
-      "series": [
-        {
-          "round": 1,
-          "indexInRound": 1,
-          "bestOf": 5,
-          "blueTeamSlug": "t1",
-          "redTeamSlug": "jdg",
-          "scheduledAt": "2025-10-28T12:00:00Z",
-          "feedsWinnerTo": { "round": 2, "indexInRound": 1 }
-        }
-      ]
-    }
-  ],
-  "teams": [
-    { "slug": "t1", "displayName": "T1", "region": "LCK" },
-    { "slug": "jdg", "displayName": "JDG", "region": "LPL" }
-  ]
+  "tournament": {
+    "slug": "worlds-2025",
+    "name": "2025 Season World Championship",
+    "year": 2025,
+    "region": null,
+    "stages": [
+      {
+        "name": "Play-In",
+        "type": "Play-In",
+        "order": 1,
+        "bestOf": 5,
+        "series": [
+          {
+            "round": 1,
+            "indexInRound": 1,
+            "bestOf": 5,
+            "status": "completed",
+            "scheduledAt": "2025-10-14T05:00:00Z",
+            "blueTeamName": "T1",
+            "redTeamName": "Invictus Gaming",
+            "winnerTeamName": "T1",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Swiss Stage",
+        "type": "Swiss",
+        "order": 2,
+        "bestOf": 1,
+        "series": [
+          {
+            "round": 1,
+            "indexInRound": 1,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": "2025-10-15T05:00:00Z",
+            "blueTeamName": "Team Secret Whales",
+            "redTeamName": "Vivo Keyd Stars",
+            "winnerTeamName": "Team Secret Whales",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 2,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "CTBC Flying Oyster",
+            "redTeamName": "Fnatic",
+            "winnerTeamName": "CTBC Flying Oyster",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 3,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "KT Rolster",
+            "redTeamName": "Movistar KOI",
+            "winnerTeamName": "KT Rolster",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 4,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Bilibili Gaming",
+            "redTeamName": "100 Thieves",
+            "winnerTeamName": "100 Thieves",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 5,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "FlyQuest",
+            "redTeamName": "T1",
+            "winnerTeamName": "T1",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 6,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Hanwha Life Esports",
+            "redTeamName": "Anyone's Legend",
+            "winnerTeamName": "Anyone's Legend",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 7,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "G2 Esports",
+            "redTeamName": "Top Esports",
+            "winnerTeamName": "Top Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 8,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Gen.G",
+            "redTeamName": "PSG Talon",
+            "winnerTeamName": "Gen.G",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 1,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": "2025-10-16T05:00:00Z",
+            "blueTeamName": "Vivo Keyd Stars",
+            "redTeamName": "FlyQuest",
+            "winnerTeamName": "FlyQuest",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 2,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "KT Rolster",
+            "redTeamName": "Team Secret Whales",
+            "winnerTeamName": "KT Rolster",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 3,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Movistar KOI",
+            "redTeamName": "G2 Esports",
+            "winnerTeamName": "G2 Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 4,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Top Esports",
+            "redTeamName": "100 Thieves",
+            "winnerTeamName": "Top Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 5,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "CTBC Flying Oyster",
+            "redTeamName": "T1",
+            "winnerTeamName": "CTBC Flying Oyster",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 6,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Gen.G",
+            "redTeamName": "Anyone's Legend",
+            "winnerTeamName": "Anyone's Legend",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 7,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Bilibili Gaming",
+            "redTeamName": "Fnatic",
+            "winnerTeamName": "Bilibili Gaming",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 8,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Hanwha Life Esports",
+            "redTeamName": "PSG Talon",
+            "winnerTeamName": "Hanwha Life Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 3,
+            "indexInRound": 1,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": "2025-10-17T05:00:00Z",
+            "blueTeamName": "KT Rolster",
+            "redTeamName": "Top Esports",
+            "winnerTeamName": "KT Rolster",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 3,
+            "indexInRound": 2,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "CTBC Flying Oyster",
+            "redTeamName": "Anyone's Legend",
+            "winnerTeamName": "Anyone's Legend",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 4,
+            "indexInRound": 1,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": "2025-10-18T05:00:00Z",
+            "blueTeamName": "FlyQuest",
+            "redTeamName": "Team Secret Whales",
+            "winnerTeamName": "FlyQuest",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 4,
+            "indexInRound": 2,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Gen.G",
+            "redTeamName": "T1",
+            "winnerTeamName": "Gen.G",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 4,
+            "indexInRound": 3,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Bilibili Gaming",
+            "redTeamName": "G2 Esports",
+            "winnerTeamName": "G2 Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 4,
+            "indexInRound": 4,
+            "bestOf": 1,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Hanwha Life Esports",
+            "redTeamName": "100 Thieves",
+            "winnerTeamName": "Hanwha Life Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 5,
+            "indexInRound": 1,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": "2025-10-19T05:00:00Z",
+            "blueTeamName": "Movistar KOI",
+            "redTeamName": "Fnatic",
+            "winnerTeamName": "Movistar KOI",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 5,
+            "indexInRound": 2,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "PSG Talon",
+            "redTeamName": "Vivo Keyd Stars",
+            "winnerTeamName": "Vivo Keyd Stars",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 6,
+            "indexInRound": 1,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": "2025-10-22T05:00:00Z",
+            "blueTeamName": "CTBC Flying Oyster",
+            "redTeamName": "Hanwha Life Esports",
+            "winnerTeamName": "Hanwha Life Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 6,
+            "indexInRound": 2,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "FlyQuest",
+            "redTeamName": "G2 Esports",
+            "winnerTeamName": "G2 Esports",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 7,
+            "indexInRound": 1,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": "2025-10-23T05:00:00Z",
+            "blueTeamName": "Movistar KOI",
+            "redTeamName": "Team Secret Whales",
+            "winnerTeamName": "Movistar KOI",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 7,
+            "indexInRound": 2,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "Gen.G",
+            "redTeamName": "Top Esports",
+            "winnerTeamName": "Gen.G",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 8,
+            "indexInRound": 1,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": "2025-10-24T05:00:00Z",
+            "blueTeamName": "Bilibili Gaming",
+            "redTeamName": "Vivo Keyd Stars",
+            "winnerTeamName": "Bilibili Gaming",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 8,
+            "indexInRound": 2,
+            "bestOf": 3,
+            "status": "completed",
+            "scheduledAt": null,
+            "blueTeamName": "100 Thieves",
+            "redTeamName": "T1",
+            "winnerTeamName": "T1",
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "completed",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "completed",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 9,
+            "indexInRound": 1,
+            "bestOf": 3,
+            "status": "scheduled",
+            "scheduledAt": "2025-10-25T05:00:00Z",
+            "blueTeamName": "CTBC Flying Oyster",
+            "redTeamName": "FlyQuest",
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 9,
+            "indexInRound": 2,
+            "bestOf": 3,
+            "status": "scheduled",
+            "scheduledAt": "2025-10-25T07:00:00Z",
+            "blueTeamName": "Bilibili Gaming",
+            "redTeamName": "Top Esports",
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 9,
+            "indexInRound": 3,
+            "bestOf": 3,
+            "status": "scheduled",
+            "scheduledAt": "2025-10-25T09:00:00Z",
+            "blueTeamName": "Movistar KOI",
+            "redTeamName": "T1",
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Knockout Stage",
+        "type": "Knockout",
+        "order": 3,
+        "bestOf": 5,
+        "series": [
+          {
+            "round": 1,
+            "indexInRound": 1,
+            "bestOf": 5,
+            "status": "scheduled",
+            "scheduledAt": "2025-10-28T05:00:00Z",
+            "blueTeamName": null,
+            "redTeamName": null,
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 5,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 2,
+            "bestOf": 5,
+            "status": "scheduled",
+            "scheduledAt": "2025-10-29T05:00:00Z",
+            "blueTeamName": null,
+            "redTeamName": null,
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 5,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 3,
+            "bestOf": 5,
+            "status": "scheduled",
+            "scheduledAt": "2025-10-30T05:00:00Z",
+            "blueTeamName": null,
+            "redTeamName": null,
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 5,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 1,
+            "indexInRound": 4,
+            "bestOf": 5,
+            "status": "scheduled",
+            "scheduledAt": "2025-10-31T05:00:00Z",
+            "blueTeamName": null,
+            "redTeamName": null,
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 5,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 1,
+            "bestOf": 5,
+            "status": "scheduled",
+            "scheduledAt": "2025-11-01T05:00:00Z",
+            "blueTeamName": null,
+            "redTeamName": null,
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 5,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "indexInRound": 2,
+            "bestOf": 5,
+            "status": "scheduled",
+            "scheduledAt": "2025-11-02T05:00:00Z",
+            "blueTeamName": null,
+            "redTeamName": null,
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 5,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          },
+          {
+            "round": 3,
+            "indexInRound": 1,
+            "bestOf": 5,
+            "status": "scheduled",
+            "scheduledAt": "2025-11-09T05:00:00Z",
+            "blueTeamName": null,
+            "redTeamName": null,
+            "winnerTeamName": null,
+            "matches": [
+              {
+                "gameIndex": 1,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 2,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 3,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 4,
+                "status": "scheduled",
+                "oracleGameId": null
+              },
+              {
+                "gameIndex": 5,
+                "status": "scheduled",
+                "oracleGameId": null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

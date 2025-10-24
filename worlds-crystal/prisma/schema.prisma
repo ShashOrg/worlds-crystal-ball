@@ -25,19 +25,24 @@ model Player {
 }
 
 model Game {
-  id         BigInt   @id @default(autoincrement())
-  tournament String
-  stage      String
-  dateUtc    DateTime
-  patch      String?
-  blueTeam   String
-  redTeam    String
-  winnerTeam String
+  id           BigInt   @id @default(autoincrement())
+  tournament   String
+  stage        String
+  dateUtc      DateTime
+  patch        String?
+  blueTeam     String
+  redTeam      String
+  winnerTeam   String
+  oracleGameId String?  @unique
 
-  // add this:
-  oracleGameId String? @unique
+  seriesId     String
+  gameInSeries Int
+  bestOf       BestOf
 
   GameChampStats GameChampStats[]
+
+  @@index([seriesId])
+  @@index([tournament, stage])
 }
 
 model GameChampStats {
@@ -59,19 +64,19 @@ model GameChampStats {
 }
 
 model Tournament {
-  id        Int       @id @default(autoincrement())
-  slug      String    @unique
+  id        Int        @id @default(autoincrement())
+  slug      String     @unique
   name      String
   year      Int
   region    String?
   stages    Stage[]
   questions Question[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Stage {
-  id           Int        @id @default(autoincrement())
+  id           Int    @id @default(autoincrement())
   tournamentId Int
   name         String
   order        Int
@@ -79,7 +84,7 @@ model Stage {
   type         String
 
   tournament Tournament @relation(fields: [tournamentId], references: [id])
-  series      Series[]
+  series     Series[]
 }
 
 model Team {
@@ -94,7 +99,7 @@ model Team {
 }
 
 model Series {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   stageId         Int
   round           Int
   indexInRound    Int
@@ -148,14 +153,14 @@ model TeamRating {
 }
 
 model Question {
-  id           Int      @id @default(autoincrement())
-  slug         String   @unique
+  id           Int    @id @default(autoincrement())
+  slug         String @unique
   tournamentId Int
   text         String
   type         String
   configJson   Json
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  tournament Tournament            @relation(fields: [tournamentId], references: [id])
   picks      Pick[]
   snapshots  ProbabilitySnapshot[]
 }
@@ -188,6 +193,22 @@ model ProbabilitySnapshot {
 enum Side {
   BLUE
   RED
+}
+
+enum BestOf {
+  BO1
+  BO3
+  BO5
+}
+
+model PlannedSeries {
+  id         Int    @id @default(autoincrement())
+  tournament String
+  stage      String
+  seriesId   String @unique
+  bestOf     BestOf
+
+  @@index([tournament, stage])
 }
 
 model ExternalMetric {

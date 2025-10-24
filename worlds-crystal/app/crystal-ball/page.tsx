@@ -2,12 +2,14 @@ import * as React from "react";
 
 import { prisma } from "@/lib/prisma";
 import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ball-summary";
+import { getSeriesAndGamesStats } from "@/lib/stats/seriesGames";
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
 import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import QuestionGrid from "@/components/QuestionGrid";
 import { EntityMetricTable, type EntityMetricTableColumns } from "./EntityMetricTable";
+import { StatsHeader } from "@/components/StatsHeader";
 
 const CURRENT_SEASON = 2025;
 
@@ -558,6 +560,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 
 export default async function CrystalBallPage() {
     const summaryPromise = getCrystalBallSummary(CURRENT_SEASON);
+    const seriesStatsPromise = getSeriesAndGamesStats();
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -601,22 +604,27 @@ export default async function CrystalBallPage() {
         resultsByCategory.get(entry.stat.category)!.push(entry);
     }
 
-    const summary = await summaryPromise;
+    const [summary, seriesStats] = await Promise.all([summaryPromise, seriesStatsPromise]);
     const categories = Object.keys(groupedResults);
 
     return (
         <div className="mx-auto max-w-7xl space-y-10 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
-            <section className="grid gap-4 sm:grid-cols-3">
-                <SummaryStat label="Games Played" value={summary.totalGames} />
-                <SummaryStat label="Matches Played" value={summary.totalMatches} />
+            <StatsHeader
+                numberOfSeries={seriesStats.numberOfSeries}
+                numberOfGames={seriesStats.numberOfGames}
+                numberOfRemainingSeries={seriesStats.numberOfRemainingSeries}
+                numberOfRemainingGames={seriesStats.numberOfRemainingGames}
+            />
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <SummaryStat
                     label="Max Remaining Matches"
                     value={summary.maxRemainingMatches}
                     helperText={formatRemainingMatchesHelper(summary)}
                 />
-            </section>
+            </div>
 
             {categories.map((category) => {
                 const items = resultsByCategory.get(category) ?? [];

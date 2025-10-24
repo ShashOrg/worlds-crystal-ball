@@ -1,0 +1,26 @@
+{
+  "tournament": { "slug": "worlds-2025", "name": "Worlds 2025", "year": 2025 },
+  "stages": [
+    {
+      "name": "Knockouts",
+      "order": 2,
+      "bestOf": 5,
+      "type": "Knockout",
+      "series": [
+        {
+          "round": 1,
+          "indexInRound": 1,
+          "bestOf": 5,
+          "blueTeamSlug": "t1",
+          "redTeamSlug": "jdg",
+          "scheduledAt": "2025-10-28T12:00:00Z",
+          "feedsWinnerTo": { "round": 2, "indexInRound": 1 }
+        }
+      ]
+    }
+  ],
+  "teams": [
+    { "slug": "t1", "displayName": "T1", "region": "LCK" },
+    { "slug": "jdg", "displayName": "JDG", "region": "LPL" }
+  ]
+}

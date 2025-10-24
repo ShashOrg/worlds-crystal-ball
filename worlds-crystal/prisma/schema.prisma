@@ -58,6 +58,133 @@ model GameChampStats {
   @@unique([gameId, playerId], name: "game_player_unique")
 }
 
+model Tournament {
+  id        Int       @id @default(autoincrement())
+  slug      String    @unique
+  name      String
+  year      Int
+  region    String?
+  stages    Stage[]
+  questions Question[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Stage {
+  id           Int        @id @default(autoincrement())
+  tournamentId Int
+  name         String
+  order        Int
+  bestOf       Int
+  type         String
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  series      Series[]
+}
+
+model Team {
+  id          Int          @id @default(autoincrement())
+  slug        String       @unique
+  displayName String
+  region      String?
+  ratings     TeamRating[]
+  seriesBlue  Series[]     @relation("SeriesBlueTeam")
+  seriesRed   Series[]     @relation("SeriesRedTeam")
+  seriesWins  Series[]     @relation("SeriesWinnerTeam")
+}
+
+model Series {
+  id              Int      @id @default(autoincrement())
+  stageId         Int
+  round           Int
+  indexInRound    Int
+  bestOf          Int
+  status          String
+  blueTeamId      Int?
+  redTeamId       Int?
+  winnerTeamId    Int?
+  scheduledAt     DateTime?
+  feedsWinnerToId Int?
+  feedsLoserToId  Int?
+
+  stage      Stage @relation(fields: [stageId], references: [id])
+  blueTeam   Team? @relation("SeriesBlueTeam", fields: [blueTeamId], references: [id])
+  redTeam    Team? @relation("SeriesRedTeam", fields: [redTeamId], references: [id])
+  winnerTeam Team? @relation("SeriesWinnerTeam", fields: [winnerTeamId], references: [id])
+
+  matches Match[]
+
+  @@index([stageId, round, indexInRound])
+}
+
+model Match {
+  id           Int       @id @default(autoincrement())
+  seriesId     Int
+  gameIndex    Int
+  status       String
+  blueTeamId   Int?
+  redTeamId    Int?
+  winnerTeamId Int?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  oracleGameId String?   @unique
+
+  series Series @relation(fields: [seriesId], references: [id])
+}
+
+model TeamRating {
+  id        Int      @id @default(autoincrement())
+  teamId    Int
+  rating    Float
+  rd        Float?
+  vol       Float?
+  patch     String?
+  source    String
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id])
+
+  @@index([teamId, createdAt])
+}
+
+model Question {
+  id           Int      @id @default(autoincrement())
+  slug         String   @unique
+  tournamentId Int
+  text         String
+  type         String
+  configJson   Json
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  picks      Pick[]
+  snapshots  ProbabilitySnapshot[]
+}
+
+model Pick {
+  id         Int      @id @default(autoincrement())
+  userId     String
+  questionId Int
+  answerKey  String
+  createdAt  DateTime @default(now())
+
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
+}
+
+model ProbabilitySnapshot {
+  id          Int      @id @default(autoincrement())
+  questionId  Int
+  answerKey   String
+  probability Float
+  asOf        DateTime @default(now())
+  detailsJson Json?
+
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@index([questionId, asOf])
+}
+
 enum Side {
   BLUE
   RED

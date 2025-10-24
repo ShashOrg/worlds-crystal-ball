@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { MetricResult } from "@/lib/metric-results";
 import { prisma } from "@/lib/prisma";
 import { recomputeAndStoreCrystalBallSummary } from "@/lib/crystal-ball-summary";
+import { rebuildTournamentElo } from "@/lib/probability/eloRebuild";
 
 async function ensureExternalMetricTable() {
     const exists = await prisma.$queryRaw<{exists: boolean}[]>`
@@ -855,6 +856,134 @@ function buildCommunityMetricResultsFromWorkbook(workbook: XLSX.WorkBook): Recor
     return metrics;
 }
 
+const teamLookupCache = new Map<string, number | null>();
+
+function normalizeTeamName(name: string) {
+    return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+async function resolveTeamId(name: string) {
+    if (!name) return null;
+    const key = normalizeTeamName(name);
+    if (teamLookupCache.has(key)) {
+        return teamLookupCache.get(key) ?? null;
+    }
+
+    const team = await prisma.team.findFirst({
+        where: {
+            OR: [
+                { slug: key },
+                { slug: name.toLowerCase() },
+                { displayName: { equals: name, mode: "insensitive" } },
+            ],
+        },
+    });
+
+    const id = team?.id ?? null;
+    teamLookupCache.set(key, id);
+    return id;
+}
+
+function winsNeeded(bestOf: number) {
+    return Math.floor(bestOf / 2) + 1;
+}
+
+async function updateSeriesStatuses(seriesIds: number[]) {
+    for (const seriesId of seriesIds) {
+        const series = await prisma.series.findUnique({
+            where: { id: seriesId },
+            include: { matches: true },
+        });
+        if (!series) continue;
+
+        const blueWins = series.matches.filter((m) => m.winnerTeamId === series.blueTeamId).length;
+        const redWins = series.matches.filter((m) => m.winnerTeamId === series.redTeamId).length;
+        const needed = winsNeeded(series.bestOf);
+
+        let status = series.status;
+        let winnerTeamId: number | null = series.winnerTeamId;
+        if (blueWins >= needed && series.blueTeamId) {
+            winnerTeamId = series.blueTeamId;
+            status = "completed";
+        } else if (redWins >= needed && series.redTeamId) {
+            winnerTeamId = series.redTeamId;
+            status = "completed";
+        } else {
+            const completedGames = series.matches.filter((m) => m.status === "completed").length;
+            if (completedGames > 0) status = "in_progress";
+        }
+
+        await prisma.series.update({
+            where: { id: series.id },
+            data: {
+                blueTeamId: series.blueTeamId,
+                redTeamId: series.redTeamId,
+                winnerTeamId,
+                status,
+            },
+        });
+    }
+}
+
+async function syncMatchesFromOracle() {
+    const matches = await prisma.match.findMany({
+        where: { oracleGameId: { not: null } },
+        include: { series: { include: { stage: true } } },
+    });
+
+    if (matches.length === 0) return;
+
+    const games = await prisma.game.findMany({
+        where: { oracleGameId: { in: matches.map((m) => m.oracleGameId!).filter(Boolean) } },
+    });
+    const gameByOracleId = new Map(games.map((g) => [g.oracleGameId!, g]));
+
+    const seriesToUpdate = new Set<number>();
+    const tournaments = new Set<number>();
+
+    for (const match of matches) {
+        if (!match.oracleGameId) continue;
+        const game = gameByOracleId.get(match.oracleGameId);
+        if (!game) continue;
+
+        let winnerTeamId: number | null = match.winnerTeamId ?? null;
+        if (!winnerTeamId) {
+            winnerTeamId = await resolveTeamId(game.winnerTeam);
+        }
+
+        let blueTeamId = match.blueTeamId;
+        if (!blueTeamId) {
+            blueTeamId = await resolveTeamId(game.blueTeam);
+        }
+
+        let redTeamId = match.redTeamId;
+        if (!redTeamId) {
+            redTeamId = await resolveTeamId(game.redTeam);
+        }
+
+        const updateData: Record<string, unknown> = {};
+        if (winnerTeamId) updateData.winnerTeamId = winnerTeamId;
+        if (blueTeamId) updateData.blueTeamId = blueTeamId;
+        if (redTeamId) updateData.redTeamId = redTeamId;
+        if (winnerTeamId) updateData.status = "completed";
+
+        if (Object.keys(updateData).length > 0) {
+            await prisma.match.update({ where: { id: match.id }, data: updateData });
+            seriesToUpdate.add(match.seriesId);
+            tournaments.add(match.series.stage.tournamentId);
+        }
+    }
+
+    await updateSeriesStatuses(Array.from(seriesToUpdate));
+
+    for (const tournamentId of tournaments) {
+        const result = await rebuildTournamentElo(tournamentId);
+        console.log(
+            `[ratings] tournament ${tournamentId} Elo updated: teams=${result.teamsUpdated} matches=${result.matchesProcessed}`,
+        );
+    }
+}
+
 async function main() {
     const raw = await loadCsvText();
     // Strip UTF-8 BOM if present
@@ -1041,6 +1170,8 @@ async function main() {
     } else {
         console.warn("[community] skipped syncing metrics (no data available)");
     }
+
+    await syncMatchesFromOracle();
 }
 
 main().catch((e) => {

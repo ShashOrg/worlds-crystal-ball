@@ -1,4 +1,8 @@
+import path from "node:path";
+
 import { defineConfig } from "vitest/config";
+
+const projectRoot = path.resolve(__dirname);
 
 export default defineConfig({
   test: {
@@ -8,5 +12,10 @@ export default defineConfig({
   },
   css: {
     postcss: null,
+  },
+  resolve: {
+    alias: {
+      "@": projectRoot,
+    },
   },
 });

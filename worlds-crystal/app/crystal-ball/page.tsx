@@ -558,7 +558,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
-    const liveCountsPromise = getLiveCounts({ tournament: "Worlds" });
+    const counts = await getLiveCounts({ tournament: "Worlds" });
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -602,7 +602,6 @@ export default async function CrystalBallPage() {
         resultsByCategory.get(entry.stat.category)!.push(entry);
     }
 
-    const counts = await liveCountsPromise;
     const categories = Object.keys(groupedResults);
 
     return (

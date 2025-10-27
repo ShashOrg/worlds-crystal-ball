@@ -1155,9 +1155,14 @@ async function main() {
         const blueTeam = group.find((r) => (r.side ?? "").toLowerCase() === "blue")?.teamname ?? "Blue";
         const redTeam = group.find((r) => (r.side ?? "").toLowerCase() === "red")?.teamname ?? "Red";
         const winnerTeam = group.find((r) => toBoolWin(r.result))?.teamname ?? blueTeam;
-        const gameInSeries = parseGameInSeries(g0, gid);
-        const { seriesKey, seriesGameNo } = parseSeriesFromOracleId(gid);
-        const seriesId = deriveSeriesId({
+        const parsedSeries = parseSeriesFromOracleId(gid);
+        const parsedGameInSeries = parsedSeries.gameInSeries;
+        const parsedSeriesId = parsedSeries.seriesId;
+        const seriesKey = parsedSeries.seriesKey;
+        const seriesGameNo = parsedSeries.seriesGameNo;
+        const fallbackGameInSeries = parseGameInSeries(g0, gid);
+        const gameInSeries = fallbackGameInSeries > 0 ? fallbackGameInSeries : parsedGameInSeries;
+        const derivedSeriesId = deriveSeriesId({
             gameId: gid,
             tournament,
             stage,
@@ -1166,6 +1171,7 @@ async function main() {
             redTeam,
             url: g0.url,
         });
+        const seriesId = parsedSeriesId || derivedSeriesId;
 
         metadataByGame.set(gid, {
             tournament,

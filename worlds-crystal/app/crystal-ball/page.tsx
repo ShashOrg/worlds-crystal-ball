@@ -1,8 +1,7 @@
 import * as React from "react";
 
 import { prisma } from "@/lib/prisma";
-import { getCrystalBallSummary, type CrystalBallSummary } from "@/lib/crystal-ball-summary";
-import { getSeriesAndGamesStats } from "@/lib/stats/seriesGames";
+import { getLiveCounts } from "@/lib/stats/worldsCounts";
 import { MetricEntityEntry, MetricResult } from "@/lib/metric-results";
 import { STATISTICS, STATISTICS_BY_KEY, groupStatisticsByCategory, StatisticDefinition } from "@/lib/statistics";
 import { getServerSession } from "next-auth";
@@ -559,8 +558,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
-    const summaryPromise = getCrystalBallSummary(CURRENT_SEASON);
-    const seriesStatsPromise = getSeriesAndGamesStats();
+    const liveCountsPromise = getLiveCounts({ tournament: "Worlds" });
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);
@@ -604,7 +602,7 @@ export default async function CrystalBallPage() {
         resultsByCategory.get(entry.stat.category)!.push(entry);
     }
 
-    const [summary, seriesStats] = await Promise.all([summaryPromise, seriesStatsPromise]);
+    const counts = await liveCountsPromise;
     const categories = Object.keys(groupedResults);
 
     return (
@@ -612,19 +610,11 @@ export default async function CrystalBallPage() {
             <h1 className="text-3xl font-semibold">Crystal Ball — Live Stats</h1>
 
             <StatsHeader
-                numberOfSeries={seriesStats.numberOfSeries}
-                numberOfGames={seriesStats.numberOfGames}
-                numberOfRemainingSeries={seriesStats.numberOfRemainingSeries}
-                numberOfRemainingGames={seriesStats.numberOfRemainingGames}
+                numberOfSeries={counts.series.played}
+                numberOfGames={counts.games.played}
+                numberOfRemainingSeries={counts.series.remaining}
+                numberOfRemainingGames={counts.games.remaining}
             />
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <SummaryStat
-                    label="Max Remaining Matches"
-                    value={summary.maxRemainingMatches}
-                    helperText={formatRemainingMatchesHelper(summary)}
-                />
-            </div>
 
             {categories.map((category) => {
                 const items = resultsByCategory.get(category) ?? [];
@@ -660,43 +650,6 @@ export default async function CrystalBallPage() {
                     </section>
                 );
             })}
-        </div>
-    );
-}
-
-function formatRemainingMatchesHelper(summary: CrystalBallSummary): string | undefined {
-    if (summary.totalPossibleMatches === null) {
-        return "Schedule metadata unavailable";
-    }
-
-    const parts: string[] = [];
-    if (summary.totalScheduledMatches !== null) {
-        parts.push(`${summary.totalScheduledMatches.toLocaleString()} scheduled`);
-    }
-    if (summary.totalPotentialMatches !== null && summary.totalPotentialMatches > 0) {
-        parts.push(`${summary.totalPotentialMatches.toLocaleString()} potential`);
-    }
-
-    const breakdown = parts.length ? ` (${parts.join(" + ")})` : "";
-    return `Out of ${summary.totalPossibleMatches.toLocaleString()} possible matches${breakdown}`;
-}
-
-function SummaryStat({
-    label,
-    value,
-    helperText,
-}: {
-    label: string;
-    value: number | null;
-    helperText?: string;
-}) {
-    const displayValue = value !== null ? value.toLocaleString() : "—";
-
-    return (
-        <div className="card px-4 py-3 shadow-sm">
-            <p className="text-sm font-medium text-muted">{label}</p>
-            <p className="text-2xl font-semibold text-text">{displayValue}</p>
-            {helperText ? <p className="text-xs text-muted">{helperText}</p> : null}
         </div>
     );
 }

@@ -35,12 +35,15 @@ model Game {
   winnerTeam   String
   oracleGameId String?  @unique
 
+  seriesKey    String  @default("")
+  seriesGameNo Int     @default(1)
   seriesId     String
   gameInSeries Int
   bestOf       BestOf
 
   GameChampStats GameChampStats[]
 
+  @@index([seriesKey])
   @@index([seriesId])
   @@index([tournament, stage])
 }

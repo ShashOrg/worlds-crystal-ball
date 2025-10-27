@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { recomputeAndStoreCrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { rebuildTournamentElo } from "@/lib/probability/eloRebuild";
 import { BestOf } from "@prisma/client";
+import { parseSeriesFromOracleId } from "@/lib/oracle/series";
 
 async function ensureExternalMetricTable() {
     const exists = await prisma.$queryRaw<{exists: boolean}[]>`
@@ -1138,6 +1139,8 @@ async function main() {
         blueTeam: string;
         redTeam: string;
         winnerTeam: string;
+        seriesKey: string;
+        seriesGameNo: number;
         seriesId: string;
         gameInSeries: number;
     };
@@ -1153,6 +1156,7 @@ async function main() {
         const redTeam = group.find((r) => (r.side ?? "").toLowerCase() === "red")?.teamname ?? "Red";
         const winnerTeam = group.find((r) => toBoolWin(r.result))?.teamname ?? blueTeam;
         const gameInSeries = parseGameInSeries(g0, gid);
+        const { seriesKey, seriesGameNo } = parseSeriesFromOracleId(gid);
         const seriesId = deriveSeriesId({
             gameId: gid,
             tournament,
@@ -1171,6 +1175,8 @@ async function main() {
             blueTeam,
             redTeam,
             winnerTeam,
+            seriesKey,
+            seriesGameNo,
             seriesId,
             gameInSeries,
         });
@@ -1206,6 +1212,8 @@ async function main() {
             blueTeam: meta.blueTeam,
             redTeam: meta.redTeam,
             winnerTeam: meta.winnerTeam,
+            seriesKey: meta.seriesKey,
+            seriesGameNo: meta.seriesGameNo,
             seriesId: meta.seriesId,
             gameInSeries: meta.gameInSeries,
             bestOf,

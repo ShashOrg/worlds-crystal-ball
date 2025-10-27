@@ -558,7 +558,7 @@ const metricHandlers: Record<string, MetricComputation> = {
 };
 
 export default async function CrystalBallPage() {
-    const counts = await getLiveCounts({ tournament: "Worlds" });
+    const counts = await getLiveCounts();
     const session = await getServerSession(authOptions);
     const stats = STATISTICS;
     const groupedResults = groupStatisticsByCategory(stats);

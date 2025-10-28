@@ -45,6 +45,7 @@ model Game {
 
   @@index([seriesKey])
   @@index([seriesId])
+  @@unique([seriesId, gameInSeries])
   @@index([tournament, stage])
 }
 

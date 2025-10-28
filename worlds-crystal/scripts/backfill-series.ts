@@ -12,8 +12,6 @@ async function main() {
             redTeam: true,
             seriesId: true,
             gameInSeries: true,
-            seriesKey: true,
-            seriesGameNo: true,
         },
     });
 
@@ -27,11 +25,7 @@ async function main() {
             redTeam: game.redTeam,
         });
 
-        const needsUpdate =
-            game.seriesId !== computedSeriesId ||
-            game.gameInSeries !== fixedGameInSeries ||
-            game.seriesKey !== computedSeriesId ||
-            game.seriesGameNo !== fixedGameInSeries;
+        const needsUpdate = game.seriesId !== computedSeriesId || game.gameInSeries !== fixedGameInSeries;
 
         if (needsUpdate) {
             await prisma.game.update({
@@ -39,8 +33,6 @@ async function main() {
                 data: {
                     seriesId: computedSeriesId,
                     gameInSeries: fixedGameInSeries,
-                    seriesKey: computedSeriesId,
-                    seriesGameNo: fixedGameInSeries,
                 },
             });
         }

@@ -6,7 +6,6 @@ import { MetricResult } from "@/lib/metric-results";
 import { prisma } from "@/lib/prisma";
 import { recomputeAndStoreCrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { rebuildTournamentElo } from "@/lib/probability/eloRebuild";
-import { BestOf } from "@prisma/client";
 import { buildSeriesId } from "@/utils/series";
 
 async function ensureExternalMetricTable() {
@@ -350,12 +349,6 @@ function parseGameInSeries(row: Row, gameId: string): number {
     }
 
     return 1;
-}
-
-function inferBestOfFromMaxGame(maxGame: number): BestOf {
-    if (maxGame >= 5) return BestOf.BO5;
-    if (maxGame >= 3) return BestOf.BO3;
-    return BestOf.BO1;
 }
 
 function detectDelimiter(text: string) {
@@ -1091,19 +1084,17 @@ async function main() {
         games.get(r.gameid)!.push(r);
     }
 
-    type GameMetadata = {
-        tournament: string;
-        stage: string;
-        dateUtc: Date;
-        patch: string | null;
-        blueTeam: string;
-        redTeam: string;
-        winnerTeam: string;
-        seriesId: string;
-        gameInSeries: number;
-        seriesKey: string;
-        seriesGameNo: number;
-    };
+type GameMetadata = {
+    tournament: string;
+    stage: string;
+    dateUtc: Date;
+    patch: string | null;
+    blueTeam: string;
+    redTeam: string;
+    winnerTeam: string;
+    seriesId: string;
+    gameInSeries: number;
+};
 
     const metadataByGame = new Map<string, GameMetadata>();
     for (const [gid, group] of games) {
@@ -1124,9 +1115,6 @@ async function main() {
             blueTeam,
             redTeam,
         });
-        const seriesKey = seriesId;
-        const seriesGameNo = gameInSeries;
-
         metadataByGame.set(gid, {
             tournament,
             stage,
@@ -1137,22 +1125,7 @@ async function main() {
             winnerTeam,
             seriesId,
             gameInSeries,
-            seriesKey,
-            seriesGameNo,
         });
-    }
-
-    const seriesMaxGame = new Map<string, number>();
-    for (const { seriesId, gameInSeries } of metadataByGame.values()) {
-        const current = seriesMaxGame.get(seriesId) ?? 0;
-        if (gameInSeries > current) {
-            seriesMaxGame.set(seriesId, gameInSeries);
-        }
-    }
-
-    const bestOfBySeries = new Map<string, BestOf>();
-    for (const [seriesId, maxGame] of seriesMaxGame) {
-        bestOfBySeries.set(seriesId, inferBestOfFromMaxGame(maxGame));
     }
 
     let created = 0,
@@ -1162,8 +1135,6 @@ async function main() {
     for (const [gid, group] of games) {
         const meta = metadataByGame.get(gid);
         if (!meta) continue;
-        const bestOf = bestOfBySeries.get(meta.seriesId) ?? inferBestOfFromMaxGame(meta.gameInSeries);
-
         const gameData = {
             tournament: meta.tournament,
             stage: meta.stage,
@@ -1172,11 +1143,8 @@ async function main() {
             blueTeam: meta.blueTeam,
             redTeam: meta.redTeam,
             winnerTeam: meta.winnerTeam,
-            seriesKey: meta.seriesKey,
-            seriesGameNo: meta.seriesGameNo,
             seriesId: meta.seriesId,
             gameInSeries: meta.gameInSeries,
-            bestOf,
         } satisfies Parameters<typeof prisma.game.create>[0]["data"];
 
         const existing = await prisma.game.findUnique({ where: { oracleGameId: gid } });

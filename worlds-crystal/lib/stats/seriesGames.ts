@@ -4,7 +4,6 @@ import { BestOf } from "@prisma/client";
 type Scope = { tournament?: string; stage?: string };
 
 type PlayedSeriesEntry = {
-    bestOf: BestOf;
     gamesPlayed: number;
     maxGame: number;
 };
@@ -24,19 +23,17 @@ export async function getSeriesAndGamesStats(scope: Scope = {}): Promise<StatsRe
 
     const games = await prisma.game.findMany({
         where,
-        select: { seriesId: true, bestOf: true, gameInSeries: true },
+        select: { seriesId: true, gameInSeries: true },
     });
 
     const playedBySeries = new Map<string, PlayedSeriesEntry>();
     for (const game of games) {
         const entry = playedBySeries.get(game.seriesId) ?? {
-            bestOf: game.bestOf,
             gamesPlayed: 0,
             maxGame: 0,
         };
         entry.gamesPlayed += 1;
         entry.maxGame = Math.max(entry.maxGame, game.gameInSeries);
-        entry.bestOf = normalizeBestOf(entry.bestOf, game.bestOf, entry.maxGame);
         playedBySeries.set(game.seriesId, entry);
     }
 
@@ -51,15 +48,18 @@ export async function getSeriesAndGamesStats(scope: Scope = {}): Promise<StatsRe
     const plannedMap = new Map(planned.map((p) => [p.seriesId, p.bestOf] as const));
     const totalPlannedSeries = plannedMap.size;
 
-    const completedSeriesCount = Array.from(playedBySeries.values()).filter(isSeriesComplete).length;
+    const completedSeriesCount = Array.from(playedBySeries.entries()).filter(([seriesId, entry]) => {
+        const plannedBestOf = plannedMap.get(seriesId) ?? inferBestOfFromObserved(entry.maxGame);
+        return isSeriesComplete(entry, plannedBestOf);
+    }).length;
     const numberOfRemainingSeries = Math.max(0, totalPlannedSeries - completedSeriesCount);
 
     const maxGamesFor = (bo: BestOf) => (bo === "BO1" ? 1 : bo === "BO3" ? 3 : 5);
 
     let remainingGamesFromStarted = 0;
     for (const [seriesId, entry] of playedBySeries.entries()) {
-        const plannedBestOf = plannedMap.get(seriesId) ?? entry.bestOf;
-        if (isSeriesComplete({ ...entry, bestOf: plannedBestOf })) {
+        const plannedBestOf = plannedMap.get(seriesId) ?? inferBestOfFromObserved(entry.maxGame);
+        if (isSeriesComplete(entry, plannedBestOf)) {
             continue;
         }
         remainingGamesFromStarted += Math.max(0, maxGamesFor(plannedBestOf) - entry.gamesPlayed);
@@ -80,15 +80,14 @@ export async function getSeriesAndGamesStats(scope: Scope = {}): Promise<StatsRe
     };
 }
 
-function normalizeBestOf(current: BestOf, incoming: BestOf, observedMaxGame: number): BestOf {
-    const maxObserved = observedMaxGame >= 5 ? BestOf.BO5 : observedMaxGame >= 3 ? BestOf.BO3 : BestOf.BO1;
-    const rank = (bo: BestOf) => (bo === BestOf.BO1 ? 1 : bo === BestOf.BO3 ? 2 : 3);
-    const candidates: BestOf[] = [current, incoming, maxObserved];
-    return candidates.reduce((prev, next) => (rank(prev) >= rank(next) ? prev : next));
+function inferBestOfFromObserved(observedMaxGame: number): BestOf {
+    if (observedMaxGame >= 5) return BestOf.BO5;
+    if (observedMaxGame >= 3) return BestOf.BO3;
+    return BestOf.BO1;
 }
 
-function isSeriesComplete(entry: PlayedSeriesEntry): boolean {
-    if (entry.bestOf === BestOf.BO1) return entry.gamesPlayed >= 1;
-    if (entry.bestOf === BestOf.BO3) return entry.gamesPlayed >= 2;
+function isSeriesComplete(entry: PlayedSeriesEntry, bestOf: BestOf): boolean {
+    if (bestOf === BestOf.BO1) return entry.gamesPlayed >= 1;
+    if (bestOf === BestOf.BO3) return entry.gamesPlayed >= 2;
     return entry.gamesPlayed >= 3;
 }

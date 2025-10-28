@@ -6,7 +6,7 @@ import { MetricResult } from "@/lib/metric-results";
 import { prisma } from "@/lib/prisma";
 import { recomputeAndStoreCrystalBallSummary } from "@/lib/crystal-ball-summary";
 import { rebuildTournamentElo } from "@/lib/probability/eloRebuild";
-import { BestOf } from "@prisma/client";
+import { buildSeriesId } from "@/utils/series";
 
 async function ensureExternalMetricTable() {
     const exists = await prisma.$queryRaw<{exists: boolean}[]>`
@@ -49,6 +49,7 @@ type Row = {
     league?: string;         // e.g. "LFL2"
     year?: string | number;  // e.g. "2025"
     split?: string;          // e.g. "Winter"
+    playoffs?: string;
     patch?: string;
     url?: string;
 
@@ -348,53 +349,6 @@ function parseGameInSeries(row: Row, gameId: string): number {
     }
 
     return 1;
-}
-
-function stripSeriesSuffix(value: string): string {
-    const hyphen = value.replace(/-\d+$/, "");
-    if (hyphen && hyphen !== value) return hyphen;
-
-    const underscoreGame = value.replace(/(?:[_-]?(?:game|map))?\d+$/i, "");
-    if (underscoreGame && underscoreGame !== value) return underscoreGame;
-
-    return value;
-}
-
-function deriveSeriesId(options: {
-    gameId: string;
-    tournament: string;
-    stage: string;
-    dateUtc: Date;
-    blueTeam: string;
-    redTeam: string;
-    url?: string;
-}): string {
-    const { gameId, tournament, stage, dateUtc, blueTeam, redTeam, url } = options;
-    const trimmed = stripSeriesSuffix(gameId);
-    if (trimmed) return trimmed;
-
-    if (url) {
-        try {
-            const parsed = new URL(url, "https://example.com");
-            const base = `${parsed.origin}${parsed.pathname}`;
-            const normalized = stripSeriesSuffix(base.replace(/\/+$/, ""));
-            if (normalized) {
-                return normalized;
-            }
-        } catch (error) {
-            console.warn("[oracle] failed to parse url for seriesId", { url, error });
-        }
-    }
-
-    const isoDate = dateUtc.toISOString().split("T")[0];
-    const teams = [blueTeam ?? "Unknown", redTeam ?? "Unknown"].map((team) => team.trim()).sort();
-    return `${tournament}|${stage}|${isoDate}|${teams.join("vs")}`;
-}
-
-function inferBestOfFromMaxGame(maxGame: number): BestOf {
-    if (maxGame >= 5) return BestOf.BO5;
-    if (maxGame >= 3) return BestOf.BO3;
-    return BestOf.BO1;
 }
 
 function detectDelimiter(text: string) {
@@ -1130,39 +1084,37 @@ async function main() {
         games.get(r.gameid)!.push(r);
     }
 
-    type GameMetadata = {
-        tournament: string;
-        stage: string;
-        dateUtc: Date;
-        patch: string | null;
-        blueTeam: string;
-        redTeam: string;
-        winnerTeam: string;
-        seriesId: string;
-        gameInSeries: number;
-    };
+type GameMetadata = {
+    tournament: string;
+    stage: string;
+    dateUtc: Date;
+    patch: string | null;
+    blueTeam: string;
+    redTeam: string;
+    winnerTeam: string;
+    seriesId: string;
+    gameInSeries: number;
+};
 
     const metadataByGame = new Map<string, GameMetadata>();
     for (const [gid, group] of games) {
         const g0 = group[0];
         const tournament = g0.league ?? "Unknown";
-        const stage = g0.split ?? "Regular";
+        const stage = g0.split ?? g0.playoffs ?? "Regular";
         const dateUtc = toUtcDate(g0.date);
         const patch = g0.patch ?? null;
         const blueTeam = group.find((r) => (r.side ?? "").toLowerCase() === "blue")?.teamname ?? "Blue";
         const redTeam = group.find((r) => (r.side ?? "").toLowerCase() === "red")?.teamname ?? "Red";
         const winnerTeam = group.find((r) => toBoolWin(r.result))?.teamname ?? blueTeam;
-        const gameInSeries = parseGameInSeries(g0, gid);
-        const seriesId = deriveSeriesId({
-            gameId: gid,
-            tournament,
+        const gameInSeries = Math.max(1, parseGameInSeries(g0, gid));
+        const seriesId = buildSeriesId({
+            league: tournament,
+            year: g0.year,
             stage,
             dateUtc,
             blueTeam,
             redTeam,
-            url: g0.url,
         });
-
         metadataByGame.set(gid, {
             tournament,
             stage,
@@ -1176,19 +1128,6 @@ async function main() {
         });
     }
 
-    const seriesMaxGame = new Map<string, number>();
-    for (const { seriesId, gameInSeries } of metadataByGame.values()) {
-        const current = seriesMaxGame.get(seriesId) ?? 0;
-        if (gameInSeries > current) {
-            seriesMaxGame.set(seriesId, gameInSeries);
-        }
-    }
-
-    const bestOfBySeries = new Map<string, BestOf>();
-    for (const [seriesId, maxGame] of seriesMaxGame) {
-        bestOfBySeries.set(seriesId, inferBestOfFromMaxGame(maxGame));
-    }
-
     let created = 0,
         updated = 0,
         statsInserted = 0;
@@ -1196,8 +1135,6 @@ async function main() {
     for (const [gid, group] of games) {
         const meta = metadataByGame.get(gid);
         if (!meta) continue;
-        const bestOf = bestOfBySeries.get(meta.seriesId) ?? inferBestOfFromMaxGame(meta.gameInSeries);
-
         const gameData = {
             tournament: meta.tournament,
             stage: meta.stage,
@@ -1208,7 +1145,6 @@ async function main() {
             winnerTeam: meta.winnerTeam,
             seriesId: meta.seriesId,
             gameInSeries: meta.gameInSeries,
-            bestOf,
         } satisfies Parameters<typeof prisma.game.create>[0]["data"];
 
         const existing = await prisma.game.findUnique({ where: { oracleGameId: gid } });

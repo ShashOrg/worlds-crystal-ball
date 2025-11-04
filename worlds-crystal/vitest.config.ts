@@ -11,7 +11,7 @@ export default defineConfig({
     setupFiles: [],
   },
   css: {
-    postcss: null,
+    postcss: {},
   },
   resolve: {
     alias: {

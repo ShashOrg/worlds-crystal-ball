@@ -1,6 +1,20 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 import { PickProbability } from "./questions";
+
+const normalizeDetails = (details: unknown): Prisma.InputJsonValue => {
+  if (details === null || details === undefined) {
+    return {} as Prisma.InputJsonValue;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(details)) as Prisma.InputJsonValue;
+  } catch (error) {
+    console.warn("Failed to serialize probability snapshot details", error);
+    return {} as Prisma.InputJsonValue;
+  }
+};
 
 export async function saveProbabilitySnapshots(questionId: number, entries: PickProbability[]) {
   if (entries.length === 0) return;
@@ -10,7 +24,7 @@ export async function saveProbabilitySnapshots(questionId: number, entries: Pick
         questionId,
         answerKey: entry.answerKey,
         probability: entry.probability,
-        detailsJson: entry.details ?? {},
+        detailsJson: normalizeDetails(entry.details),
       },
     }),
   );

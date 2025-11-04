@@ -13,10 +13,10 @@ describe("getSeriesAndGamesStats", () => {
     it("returns series and game stats with remaining counts", async () => {
         const gameSpy = vi.spyOn(prisma.game, "findMany").mockResolvedValue(
             [
-                { seriesId: "series-a", bestOf: BestOf.BO3, gameInSeries: 1 },
-                { seriesId: "series-a", bestOf: BestOf.BO3, gameInSeries: 2 },
-                { seriesId: "series-b", bestOf: BestOf.BO3, gameInSeries: 1 },
-            ] as Array<{ seriesId: string; bestOf: BestOf; gameInSeries: number }>,
+                { seriesId: "series-a", gameInSeries: 1 },
+                { seriesId: "series-a", gameInSeries: 2 },
+                { seriesId: "series-b", gameInSeries: 1 },
+            ] as Array<{ seriesId: string; gameInSeries: number }>,
         );
 
         const plannedSpy = vi.spyOn(prisma.plannedSeries, "findMany").mockResolvedValue(

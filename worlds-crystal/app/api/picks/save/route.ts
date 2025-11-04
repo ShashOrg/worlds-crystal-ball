@@ -232,5 +232,7 @@ export async function POST(req: Request) {
         });
     }
 
-    return NextResponse.redirect(new URL("/picks", req.url), { status: 303 });
+    const to = new URL("/picks", req.url);
+    console.log("[picks] redirecting to", to.href);
+    return NextResponse.redirect(to, 303);
 }

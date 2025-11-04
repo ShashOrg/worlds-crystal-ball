@@ -1,5 +1,18 @@
 import { prisma } from "@/lib/prisma";
-import { BestOf } from "@prisma/client";
+import { BestOf, Prisma } from "@prisma/client";
+
+const seriesGameSelect = {
+    id: true,
+    bestOf: true,
+    gameInSeries: true,
+    tournament: true,
+    stage: true,
+    blueTeam: true,
+    redTeam: true,
+    dateUtc: true,
+} as const;
+
+type SeriesGameRecord = Prisma.GameGetPayload<{ select: typeof seriesGameSelect }>;
 
 type Scope = { tournament?: string; stage?: string };
 
@@ -24,12 +37,13 @@ export async function getSeriesAndGamesStats(scope: Scope = {}): Promise<StatsRe
 
     const games = await prisma.game.findMany({
         where,
-        select: { seriesId: true, bestOf: true, gameInSeries: true },
+        select: seriesGameSelect,
     });
 
     const playedBySeries = new Map<string, PlayedSeriesEntry>();
     for (const game of games) {
-        const entry = playedBySeries.get(game.seriesId) ?? {
+        const key = seriesKey(game);
+        const entry = playedBySeries.get(key) ?? {
             bestOf: game.bestOf,
             gamesPlayed: 0,
             maxGame: 0,
@@ -37,7 +51,7 @@ export async function getSeriesAndGamesStats(scope: Scope = {}): Promise<StatsRe
         entry.gamesPlayed += 1;
         entry.maxGame = Math.max(entry.maxGame, game.gameInSeries);
         entry.bestOf = normalizeBestOf(entry.bestOf, game.bestOf, entry.maxGame);
-        playedBySeries.set(game.seriesId, entry);
+        playedBySeries.set(key, entry);
     }
 
     const numberOfSeries = playedBySeries.size;
@@ -45,30 +59,52 @@ export async function getSeriesAndGamesStats(scope: Scope = {}): Promise<StatsRe
 
     const planned = await prisma.plannedSeries.findMany({
         where,
-        select: { seriesId: true, bestOf: true },
+        select: { bestOf: true },
     });
 
-    const plannedMap = new Map(planned.map((p) => [p.seriesId, p.bestOf] as const));
-    const totalPlannedSeries = plannedMap.size;
+    const totalPlannedSeries = planned.length;
 
-    const completedSeriesCount = Array.from(playedBySeries.values()).filter(isSeriesComplete).length;
+    const playedEntries = Array.from(playedBySeries.values());
+    const completedSeriesCount = playedEntries.filter(isSeriesComplete).length;
     const numberOfRemainingSeries = Math.max(0, totalPlannedSeries - completedSeriesCount);
 
     const maxGamesFor = (bo: BestOf) => (bo === "BO1" ? 1 : bo === "BO3" ? 3 : 5);
 
-    let remainingGamesFromStarted = 0;
-    for (const [seriesId, entry] of playedBySeries.entries()) {
-        const plannedBestOf = plannedMap.get(seriesId) ?? entry.bestOf;
-        if (isSeriesComplete({ ...entry, bestOf: plannedBestOf })) {
-            continue;
-        }
-        remainingGamesFromStarted += Math.max(0, maxGamesFor(plannedBestOf) - entry.gamesPlayed);
+    const remainingGamesFromStarted = playedEntries
+        .filter((entry) => !isSeriesComplete(entry))
+        .map((entry) => Math.max(0, maxGamesFor(entry.bestOf) - entry.gamesPlayed))
+        .reduce((acc, value) => acc + value, 0);
+
+    const plannedCounts = new Map<BestOf, number>();
+    for (const { bestOf } of planned) {
+        plannedCounts.set(bestOf, (plannedCounts.get(bestOf) ?? 0) + 1);
     }
 
-    const remainingGamesFromNotStarted = Array.from(plannedMap.entries())
-        .filter(([seriesId]) => !playedBySeries.has(seriesId))
-        .map(([, bo]) => maxGamesFor(bo))
-        .reduce((acc, value) => acc + value, 0);
+    const unmatchedEntries: PlayedSeriesEntry[] = [];
+    for (const entry of playedEntries) {
+        const count = plannedCounts.get(entry.bestOf) ?? 0;
+        if (count > 0) {
+            plannedCounts.set(entry.bestOf, count - 1);
+        } else {
+            unmatchedEntries.push(entry);
+        }
+    }
+
+    const bestOfOrder: BestOf[] = [BestOf.BO5, BestOf.BO3, BestOf.BO1];
+    for (const entry of unmatchedEntries) {
+        for (const bo of bestOfOrder) {
+            const count = plannedCounts.get(bo) ?? 0;
+            if (count > 0) {
+                plannedCounts.set(bo, count - 1);
+                break;
+            }
+        }
+    }
+
+    const remainingGamesFromNotStarted = Array.from(plannedCounts.entries()).reduce(
+        (acc, [bo, count]) => acc + count * maxGamesFor(bo),
+        0,
+    );
 
     const numberOfRemainingGames = remainingGamesFromStarted + remainingGamesFromNotStarted;
 
@@ -78,6 +114,16 @@ export async function getSeriesAndGamesStats(scope: Scope = {}): Promise<StatsRe
         numberOfRemainingSeries,
         numberOfRemainingGames,
     };
+}
+
+function seriesKey(game: SeriesGameRecord): string {
+    return [
+        game.tournament,
+        game.stage,
+        game.blueTeam,
+        game.redTeam,
+        new Date(game.dateUtc).toDateString(),
+    ].join("|");
 }
 
 function normalizeBestOf(current: BestOf, incoming: BestOf, observedMaxGame: number): BestOf {

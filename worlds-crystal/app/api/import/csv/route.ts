@@ -10,6 +10,8 @@ interface CsvRow {
     blueTeam: string;
     redTeam: string;
     winnerTeam: string;
+    game?: string | number;
+    oracleGameId?: string;
     side: string;
     player?: string;
     team?: string;
@@ -19,6 +21,23 @@ interface CsvRow {
     assists?: string | number;
     win?: string | boolean;
 }
+
+const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+const computeSeriesId = (g: {
+    tournament: string;
+    dateUtc: string | Date;
+    blueTeam: string;
+    redTeam: string;
+}) => {
+    const d = new Date(g.dateUtc);
+    const year = d.getUTCFullYear();
+    const ymd = d.toISOString().slice(0, 10);
+    const blue = norm(g.blueTeam);
+    const red = norm(g.redTeam);
+
+    return `${norm(g.tournament)}_${year}_${ymd}_${blue}_${red}`;
+};
 
 // Accepts either raw text body, or form-data with "csv" field
 export async function POST(req: Request) {
@@ -64,6 +83,14 @@ export async function POST(req: Request) {
                     blueTeam: String(g.blueTeam),
                     redTeam: String(g.redTeam),
                     winnerTeam: String(g.winnerTeam),
+                    seriesId: computeSeriesId({
+                        tournament: String(g.tournament),
+                        dateUtc: String(g.dateUtc),
+                        blueTeam: String(g.blueTeam),
+                        redTeam: String(g.redTeam),
+                    }),
+                    gameInSeries: Number(g.game) || 1,
+                    oracleGameId: g.oracleGameId ? String(g.oracleGameId) : null,
                 },
             });
 

@@ -26,7 +26,7 @@ Authentication uses NextAuth with GitHub and Google providers. Create a `.env.lo
 
 ```env
 NEXTAUTH_SECRET=replace_with_strong_random_value
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3000 # must match the origin you load in the browser
 
 GITHUB_ID=your_github_oauth_client_id
 GITHUB_SECRET=your_github_oauth_client_secret
@@ -38,7 +38,14 @@ GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 ADMIN_EMAILS=you@company.com,teammate@company.com
 ```
 
-In production, point `NEXTAUTH_URL` at the deployed URL and configure the same variables in your hosting environment.
+For production hosting, point `NEXTAUTH_URL` (and any other origin-aware variables such as `SITE_URL`) at the deployed domain, for example:
+
+```env
+NEXTAUTH_URL=https://worlds-crystal-ball-production.up.railway.app
+SITE_URL=https://worlds-crystal-ball-production.up.railway.app
+```
+
+UI navigation, redirects, and internal `fetch` calls already use relative paths, so avoid introducing variables such as `NEXT_PUBLIC_BASE_URL`/`API_BASE_URL` that hardcode `localhost`.
 
 ## Learn More
 
